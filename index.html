@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Enter the Lich’s Domain</title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body class="splash">
+  <div class="splash-wrap">
+    <img src="/assets/lich.jpg" alt="Lich reaching out" class="lich" />
+    <button id="enter">Enter</button>
+  </div>
+  <script>
+    document.getElementById('enter').addEventListener('click', () => {
+      document.body.classList.add('whoosh');
+      setTimeout(() => window.location.href = '/map.html', 400);
+    });
+  </script>
+</body>
+</html>
