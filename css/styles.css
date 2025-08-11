@@ -1,30 +1,42 @@
+:root{
+  /* spotlight position + intensity (0..1) */
+  --lx: 0px;
+  --ly: 0px;
+  --lintensity: 0;
+}
+
 html, body {height:100%;margin:0;background:#000;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#eee;}
-.splash{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.splash{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000;}
 .splash-wrap{position:relative;width:100%;height:100vh;}
-.lich{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;transition:transform .4s ease,opacity .4s ease;}
-#enter{position:absolute;left:50%;bottom:5%;transform:translateX(-50%);padding:1rem 2rem;font-size:1.2rem;border-radius:.6rem;border:none;background:#e6d264;color:#2a2200;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4);}
-body.whoosh .lich{transform:translateY(-25px);opacity:.1;}  position: absolute;
-  left: 50%;
-  bottom: 5%;
-  transform: translateX(-50%);
-  padding: 1rem 2rem;
-  font-size: 1.2rem;
-  border-radius: .6rem;
-  border: none;
-  background: #e6d264;
-  color: #2a2200;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+.lich{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;object-position:center;
+  transition:transform .4s ease, opacity .4s ease;
 }
 
-/* Whoosh on click */
-body.whoosh .lich {
-  transform: translateY(-25px);
-  opacity: .1;
-}}
-
-body.whoosh .lich {
-  transform: translateY(-25px);
-  opacity: .1;
-  transition: transform .4s ease, opacity .4s ease;
+/* Pitch-black veil with a movable spotlight */
+.veil{
+  position:absolute;inset:0;pointer-events:none;z-index:2;
+  /* base darkness */
+  background: rgba(0,0,0,0.92);
+  /* spotlight (radial gradient) centred at --lx/--ly; intensity controlled by --lintensity */
+  background:
+    radial-gradient(200px 200px at var(--lx) var(--ly),
+      rgba(255,255,255, calc(0.18*var(--lintensity))) 0%,
+      rgba(255,255,255, calc(0.10*var(--lintensity))) 35%,
+      rgba(0,0,0,0) 60%)
+    ,
+    rgba(0,0,0,0.92);
+  transition: background .15s ease;
 }
+
+/* Button shown above everything */
+#enter{
+  position:absolute;left:50%;bottom:6%;transform:translateX(-50%);z-index:3;
+  padding:1rem 2rem;font-size:1.2rem;border-radius:.6rem;border:none;
+  background:#e6d264;color:#2a2200;cursor:pointer;
+  box-shadow:0 6px 18px rgba(0,0,0,.5);
+}
+
+/* Whoosh animation */
+body.whoosh .lich{transform:translateY(-25px);opacity:.1;}
