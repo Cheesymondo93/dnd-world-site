@@ -1,0 +1,19 @@
+[
+  {
+    "id": "whistleholt",
+    "name": "Whistleholt",
+    "lat": 51.5075,
+    "lng": -0.1277,
+    "summary": "Treetop settlement. Finchfolk tavern; depressed duck chef.",
+    "seen": true,
+    "link": "https://example.com/notes/whistleholt"
+  },
+  {
+    "id": "thornbarrow",
+    "name": "Thornbarrow",
+    "lat": 51.3575,
+    "lng": -0.0877,
+    "summary": "Exiled actor Jaspin last seen here.",
+    "seen": false
+  }
+]
