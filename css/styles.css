@@ -5,13 +5,81 @@
   --lintensity: 0;
 }
 
-html, body {height:100%;margin:0;background:#000;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#eee;}
-.splash{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#000;}
-.splash-wrap{position:relative;width:100%;height:100vh;}
-.lich{
-  position:absolute;inset:0;width:100%;height:100%;
-  object-fit:cover;object-position:center;
-  transition:transform .4s ease, opacity .4s ease;
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #000;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: #eee;
+}
+
+/* Disable selection & dragging anywhere in splash */
+.splash, .splash * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.lich {
+  pointer-events: none;       /* image not clickable */
+  -webkit-user-drag: none;    /* can't drag image */
+}
+
+/* Layout */
+.splash {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #000;
+}
+.splash-wrap {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+}
+.lich {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform .4s ease, opacity .4s ease;
+}
+
+/* Centred button by default */
+#enter {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  border-radius: .6rem;
+  border: none;
+  background: #e6d264;
+  color: #2a2200;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .5);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* On wider screens, push button toward bottom */
+@media (min-aspect-ratio: 10/11) {
+  #enter {
+    top: auto;
+    bottom: max(5%, calc(env(safe-area-inset-bottom) + 16px));
+    transform: translateX(-50%);
+  }
+}
+
+/* Whoosh */
+body.whoosh .lich {
+  transform: translateY(-25px);
+  opacity: .1;
 }
 
 /* Pitch-black veil with a movable spotlight */
@@ -32,11 +100,24 @@ html, body {height:100%;margin:0;background:#000;font-family:system-ui,-apple-sy
 
 /* Button shown above everything */
 #enter{
-  position:absolute;left:50%;bottom:6%;transform:translateX(-50%);z-index:3;
-  padding:1rem 2rem;font-size:1.2rem;border-radius:.6rem;border:none;
-  background:#e6d264;color:#2a2200;cursor:pointer;
+  position:absolute; z-index:3;
+  left:50%; top:50%; transform:translate(-50%,-50%); /* centred for tall/square */
+  padding:1rem 2rem; font-size:1.2rem; border-radius:.6rem; border:none;
+  background:#e6d264; color:#2a2200; cursor:pointer;
   box-shadow:0 6px 18px rgba(0,0,0,.5);
+  -webkit-tap-highlight-color:transparent;  /* no grey flash on Android */
 }
+
+/* On wider screens, place it near the bottom, safely above system bars */
+@media (min-aspect-ratio: 10/11){
+  #enter{
+    top:auto; bottom:max(5%, calc(env(safe-area-inset-bottom) + 16px));
+    transform:translateX(-50%);
+  }
+}
+
+/* Whoosh */
+body.whoosh .lich { transform:translateY(-25px); opacity:.1; }
 
 /* Whoosh animation */
 body.whoosh .lich{transform:translateY(-25px);opacity:.1;}
