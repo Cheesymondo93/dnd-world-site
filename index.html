@@ -8,7 +8,6 @@
   :root { --green:#10b981; --green2:#34d399; --eye:rgba(56,189,248,.65); }
   *{box-sizing:border-box} html,body{height:100%;margin:0}
   body{background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial}
-  /* Full fixed viewport so no page scroll */
   .screen{position:fixed;inset:0;min-height:100dvh;background:#000;overflow:hidden}
   .lich{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:translateY(0);transition:transform .6s ease-in,opacity .6s ease-in}
   .veil{position:absolute;inset:0;background:#000;pointer-events:none}
@@ -17,27 +16,25 @@
   .centre{position:relative;z-index:2;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:0 24px}
   h1{margin:0;font-weight:800;font-size:clamp(32px,4vw,64px);text-shadow:0 2px 12px rgba(0,0,0,.5)}
   .drag{
-    user-select:none; background:var(--green); border-radius:9999px; padding:14px 28px;
-    box-shadow:0 12px 30px rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.12); font-weight:700;
-    display:inline-block; transform:translateY(var(--y,0px)); transition:transform .2s ease-out;
-    cursor:grab; /* allow gestures on the button only */
-    touch-action:none; /* this is the key */
+    user-select:none;background:var(--green);border-radius:9999px;padding:14px 28px;
+    box-shadow:0 12px 30px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12);font-weight:700;
+    display:inline-block;transform:translateY(var(--y,0px));transition:transform .2s ease-out;
+    cursor:grab;touch-action:none
   }
   .hint{font-size:12px;opacity:.85}
-  .bar{height:4px;background:rgba(0,0,0,.4);border-radius:9999px;margin-top:6px}
+  .bar{height:4px;background:rgba(0,0,0,.4);border-radius:9999px;margin-top:6px;width:100%}
   .bar>span{display:block;height:100%;width:0;background:var(--green2);border-radius:9999px;transition:width .06s linear}
   .row{margin-top:18px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
   .btn{background:#0ea5e9;color:#fff;padding:8px 12px;border-radius:8px;border:0}
   .btn[disabled]{background:#475569}
   .chip{background:#4f46e5;padding:2px 8px;border-radius:9999px;font-size:12px}
   code{background:rgba(255,255,255,.1);padding:2px 6px;border-radius:4px}
-  /* tiny debug overlay */
-  #dbg{position:fixed;left:8px;bottom:8px;z-index:99;font:12px/1 monospace;color:#fff;background:rgba(0,0,0,.5);padding:6px 8px;border-radius:6px}
 </style>
 </head>
 <body>
 <main class="screen">
-  <img id="lich" class="lich" src="assets/lich.jpg" alt="Lich"
+  <!-- use your PNG -->
+  <img id="lich" class="lich" src="assets/lich.png" alt="Lich"
        onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1612036782180-6f0b6d1a9fea?q=80&w=1920&auto=format&fit=crop';">
   <div id="veil" class="veil" style="opacity:1"></div>
   <div id="glow" class="glow"></div>
@@ -63,48 +60,84 @@
     </div>
   </div>
 </main>
-<div id="dbg">dbg…</div>
 
 <script>
-  // --- config ---
-  const PASS = "Men To Rule, Beast To Serve";
-  const TARGET=320, UNLOCK_AT=260, FAST_VY=1200;
+  // ---- config (dynamic drag distances so it’s reachable) ----
+  const PASSPHRASE = "Men To Rule, Beast To Serve";
+  let TARGET = Math.round(Math.min(220, window.innerHeight * 0.33));   // how far the button can travel
+  let UNLOCK_AT = Math.round(TARGET * 0.70);                            // where it counts as success
+  const FAST_VY = 1200;
 
-  // --- els ---
-  const drag=document.getElementById('drag'), prog=document.getElementById('prog');
-  const veil=document.getElementById('veil'), glow=document.getElementById('glow');
-  const lich=document.getElementById('lich'), heardEl=document.getElementById('heard');
-  const micBtn=document.getElementById('micBtn'), srStatus=document.getElementById('srStatus');
-  const dbg=document.getElementById('dbg');
+  // recalc on rotation/resize
+  addEventListener('resize', () => {
+    TARGET = Math.round(Math.min(220, innerHeight * 0.33));
+    UNLOCK_AT = Math.round(TARGET * 0.70);
+    setY(y); // reapply
+  });
 
-  // --- state ---
+  // ---- elements ----
+  const drag = document.getElementById('drag');
+  const prog = document.getElementById('prog');
+  const veil = document.getElementById('veil');
+  const glow = document.getElementById('glow');
+  const lich = document.getElementById('lich');
+  const heardEl = document.getElementById('heard');
+  const micBtn = document.getElementById('micBtn');
+  const srStatus = document.getElementById('srStatus');
+
+  // ---- state ----
   let dragging=false, unlocking=false;
   let start={t:0,x:0,y:0}, last={t:0,y:0}, y=0;
 
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const norm = s => (s||'').toLowerCase().replace(/[’']/g,"'").replace(/[^a-z0-9', ]+/g,'').replace(/\s+/g,' ').trim();
-  const PASS_N = norm(PASS);
+  const normalise = s => (s||'')
+      .toLowerCase().replace(/[’']/g,"'")
+      .replace(/[^a-z0-9', ]+/g,'').replace(/\s+/g,' ').trim();
 
-  const setY = n => {
-    y = clamp(n,0,TARGET);
+  // small fuzzy match (Levenshtein); accepts close matches
+  function levenshtein(a,b){
+    const m=a.length,n=b.length; const dp=Array.from({length:m+1},()=>Array(n+1).fill(0));
+    for(let i=0;i<=m;i++) dp[i][0]=i; for(let j=0;j<=n;j++) dp[0][j]=j;
+    for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+      const cost = a[i-1]===b[j-1] ? 0 : 1;
+      dp[i][j]=Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
+    }
+    return dp[m][n];
+  }
+  const PASS_N = normalise(PASSPHRASE);
+
+  function closeEnough(spoken){
+    if (!spoken) return false;
+    if (spoken === PASS_N) return true;
+    // also accept without comma
+    if (spoken.replace(/,/g,'') === PASS_N.replace(/,/g,'')) return true;
+    const d = levenshtein(spoken, PASS_N);
+    const similarity = 1 - d / Math.max(spoken.length, PASS_N.length);
+    return similarity >= 0.85 || d <= 3;
+  }
+
+  function setY(n){
+    y = clamp(n, 0, TARGET);
     drag.style.setProperty('--y', y+'px');
-    const p = y/TARGET;
+    const p = y / TARGET;
     prog.style.width = (p*100)+'%';
-    veil.style.opacity = (1-p).toFixed(3);
-    glow.style.opacity = (0.15+0.8*p).toFixed(3);
-    dbg.textContent = `y:${y.toFixed(0)} p:${(p*100).toFixed(0)}%`;
-  };
-  const flash = () => {
+    veil.style.opacity = (1 - p).toFixed(3);
+    glow.style.opacity = (0.15 + 0.8*p).toFixed(3);
+  }
+
+  function flashEyes(){
     const prev=parseFloat(glow.style.opacity)||0.15;
     glow.style.opacity=1; setTimeout(()=>glow.style.opacity=prev,220);
-  };
-  const unlock = () => {
-    if (unlocking) return; unlocking=true;
-    lich.style.transform='translateY(-1200px)';
-    setTimeout(()=>location.href='Map.html',600);
-  };
+  }
 
-  // --- drag handlers (pointer first; touch fallback for older browsers) ---
+  function unlock(){
+    if (unlocking) return;
+    unlocking = true;
+    lich.style.transform = 'translateY(-1200px)';
+    setTimeout(()=>{ location.href='Map.html'; }, 600);
+  }
+
+  // ---- drag handlers ----
   function down(e){
     dragging=true; drag.style.transition='none';
     const t = e.touches?.[0] || e;
@@ -119,51 +152,63 @@
   }
   function up(e){
     const t = e.changedTouches?.[0] || e;
-    if(!dragging){ flash(); return; }
+    if(!dragging){ flashEyes(); return; }
     dragging=false;
 
     const dt=performance.now()-start.t;
-    const tiny = dt<220 && Math.abs(t.clientX-start.x)<6 && Math.abs(t.clientY-start.y)<6;
-    if(tiny){ flash(); setY(0); return; }
+    const tiny = dt < 220 && Math.abs(t.clientX-start.x)<6 && Math.abs(t.clientY-start.y)<6;
+    if (tiny){ flashEyes(); setY(0); return; }
 
     const dtv=(performance.now()-last.t)||1;
     const vy=((t.clientY-last.y)/dtv)*1000;
-    if(vy>FAST_VY){ flash(); setY(0); return; }
+    if (vy > FAST_VY){ flashEyes(); setY(0); return; }
 
-    if(y>=UNLOCK_AT) unlock(); else { drag.style.transition='transform .2s ease-out'; setY(0); }
+    if (y >= UNLOCK_AT) unlock();
+    else { drag.style.transition='transform .2s ease-out'; setY(0); }
   }
 
-  // pointer
   drag.addEventListener('pointerdown', down);
-  drag.addEventListener('pointermove',  move);
-  drag.addEventListener('pointerup',    up);
-  // touch fallback
+  drag.addEventListener('pointermove', move);
+  drag.addEventListener('pointerup', up);
   drag.addEventListener('touchstart', down, {passive:false});
-  drag.addEventListener('touchmove',  move, {passive:false});
-  drag.addEventListener('touchend',   up,   {passive:false});
-  // clicks = fail
-  drag.addEventListener('click', e=>{ e.preventDefault(); flash(); });
+  drag.addEventListener('touchmove', move, {passive:false});
+  drag.addEventListener('touchend', up, {passive:false});
+  drag.addEventListener('click', e=>{ e.preventDefault(); flashEyes(); });
 
-  // --- speech ---
+  // ---- speech recognition ----
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SR){ micBtn.textContent='Speech not supported'; micBtn.disabled=true; srStatus.textContent='(Use Chrome/Edge over HTTPS)'; }
+  if (!SR) {
+    micBtn.textContent = 'Speech not supported';
+    micBtn.disabled = true;
+    srStatus.textContent = '(Use Chrome/Edge over HTTPS)';
+  }
 
   let listening=false;
   micBtn.addEventListener('click', async ()=>{
-    if(!SR || listening) return;
+    if (!SR || listening) return;
     listening=true; micBtn.textContent='Listening…'; heardEl.textContent='…'; srStatus.textContent='Starting…';
-    try{ await navigator.mediaDevices?.getUserMedia?.({audio:true}); }catch(_){}
-    const rec=new SR(); rec.lang='en-GB'; rec.interimResults=true; rec.continuous=false; rec.maxAlternatives=1;
+
+    try { await navigator.mediaDevices?.getUserMedia?.({ audio:true }); } catch(_) {}
+    const rec = new SR();
+    rec.lang='en-GB';
+    rec.interimResults=true;
+    rec.continuous=false;
+    rec.maxAlternatives=1;
+
     rec.onresult=(e)=>{
       let text=''; for(let i=e.resultIndex;i<e.results.length;i++){ text+=e.results[i][0].transcript; }
-      const n=norm(text); heardEl.textContent=n||'—'; srStatus.textContent='Heard interim';
-      if(e.results[e.results.length-1].isFinal){ listening=false; micBtn.textContent='Use microphone'; srStatus.textContent='Final';
-        if(n===PASS_N) unlock(); else flash();
+      const n = normalise(text);
+      heardEl.textContent = n || '—';
+      srStatus.textContent = e.results[e.results.length-1].isFinal ? 'Final' : 'Heard…';
+      if (e.results[e.results.length-1].isFinal){
+        listening=false; micBtn.textContent='Use microphone';
+        if (closeEnough(n)) unlock(); else flashEyes();
       }
     };
     rec.onerror=(ev)=>{ listening=false; micBtn.textContent='Use microphone'; srStatus.textContent='Mic error: '+(ev.error||'unknown'); };
-    rec.onend=()=>{ listening=false; micBtn.textContent='Use microphone'; if(heardEl.textContent==='…') heardEl.textContent='—'; srStatus.textContent='Ended'; };
-    try{ rec.start(); }catch(err){ listening=false; micBtn.textContent='Use microphone'; srStatus.textContent='Start failed'; }
+    rec.onend=()=>{ listening=false; micBtn.textContent='Use microphone'; if(heardEl.textContent==='…') heardEl.textContent='—'; if(!srStatus.textContent) srStatus.textContent='Ended'; };
+
+    try { rec.start(); } catch(err){ listening=false; micBtn.textContent='Use microphone'; srStatus.textContent='Start failed'; }
   });
 </script>
 </body>
