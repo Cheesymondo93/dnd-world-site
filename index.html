@@ -1,54 +1,246 @@
-<!doctype html>
-<html lang="en-GB">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Enter the Lich’s Domain</title>
-  <link rel="stylesheet" href="css/styles.css?v=6" />
+  <style>
+    :root {
+      --green: #10b981;
+      --green-2: #34d399;
+      --ink: #0b1220;
+      --indigo: #6366f1;
+      --eye-blue: rgba(56,189,248,0.65);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; }
+    .screen { position:relative; width:100%; min-height:100vh; overflow:hidden; background:#000; }
+    .lich {
+      position:absolute; inset:0; width:100%; height:100%;
+      object-fit:cover; transform:translateY(0); opacity:1;
+      transition:transform .6s ease-in, opacity .6s ease-in;
+    }
+    .veil { position:absolute; inset:0; background:#000; pointer-events:none; }
+    .vignette {
+      position:absolute; inset:0;
+      background:linear-gradient(to bottom, rgba(0,0,0,.7), rgba(0,0,0,.3), rgba(0,0,0,.8));
+      pointer-events:none;
+    }
+    .eye-glow {
+      position:absolute; inset:0; pointer-events:none;
+      mix-blend-mode:screen;
+      background: radial-gradient(ellipse at center, var(--eye-blue), transparent 45%);
+      opacity:.15; transition: opacity .15s linear;
+    }
+    .centre {
+      position:relative; z-index:2; min-height:100vh;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      text-align:center; padding:0 24px;
+    }
+    h1 { font-weight:800; font-size:clamp(32px,4vw,64px); text-shadow:0 2px 12px rgba(0,0,0,.5); margin:0; }
+    .drag {
+      user-select:none; background:var(--green); border-radius:9999px;
+      padding:14px 28px; box-shadow:0 12px 30px rgba(0,0,0,.45);
+      border:1px solid rgba(255,255,255,.12); font-weight:700; display:inline-block;
+      transform:translateY(var(--y, 0px)); transition:transform .2s ease-out;
+      cursor:grab;
+    }
+    .hint { font-size:12px; opacity:.85; }
+    .bar { position:relative; height:4px; background:rgba(0,0,0,.4); border-radius:9999px; margin-top:6px; width:100%; }
+    .bar > span { display:block; height:100%; width:0%; background:var(--green-2); border-radius:9999px; transition: width .06s linear; }
+    .row { margin-top:18px; display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; }
+    .btn {
+      background:#0ea5e9; color:#fff; padding:8px 12px; border-radius:8px; border:0; cursor:pointer;
+    }
+    .btn[disabled] { background:#475569; cursor:not-allowed; }
+    .field { padding:6px 8px; border-radius:8px; border:1px solid #475569; min-width:220px; background:#0f172a; color:#fff; }
+    code { background:rgba(255,255,255,.1); padding:2px 6px; border-radius:4px; }
+    .chip { background:#4f46e5; padding:2px 8px; border-radius:9999px; font-size:12px; }
+  </style>
 </head>
-<body class="splash">
-  <div class="splash-wrap">
-    <img src="assets/lich.png?v=7" alt="Lich reaching out" class="lich" draggable="false" />
-    <!-- dark overlay + spotlight -->
-    <div class="veil" aria-hidden="true"></div>
+<body>
+  <main class="screen" id="screen">
+    <img id="lich" class="lich" src="assets/lich.jpg" alt="Lich"
+      onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1612036782180-6f0b6d1a9fea?q=80&w=1920&auto=format&fit=crop';" />
+    <div id="veil" class="veil" style="opacity:1"></div>
+    <div id="glow" class="eye-glow"></div>
+    <div class="vignette"></div>
 
-    <button id="enter" type="button">Enter</button>
-  </div>
+    <div class="centre">
+      <h1>Enter the Lich’s Domain</h1>
+      <p style="margin-top:12px;opacity:.9">Either <strong>drag</strong> the sigil down slowly or <strong>speak the passphrase</strong>.</p>
+
+      <div style="margin-top:24px">
+        <div id="drag" class="drag">
+          Hold &amp; drag down to enter
+          <div class="hint">(clicking or yanking fails — be gentle)</div>
+          <div class="bar"><span id="prog"></span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="micBtn" class="btn">Use microphone</button>
+        <span class="chip">Passphrase: <code>Men To Rule, Beast To Serve</code></span>
+        <span style="font-size:12px;opacity:.9">Heard: <code id="heard">—</code></span>
+      </div>
+    </div>
+  </main>
 
   <script>
-    // Spotlight follows the button while pressed; darkness returns when released
-    const body = document.body;
-    const btn  = document.getElementById('enter');
+    // ---------- Config ----------
+    const PASSPHRASE = "Men To Rule, Beast To Serve";
+    const TARGET = 320;   // pixels to drag
+    const UNLOCK_AT = 260;
+    const FAST_VY = 1200; // px/s threshold for "too fast"
 
-    function setSpot(x, y, intensity){ // intensity: 0..1 (1 = brightest)
-      document.documentElement.style.setProperty('--lx', x + 'px');
-      document.documentElement.style.setProperty('--ly', y + 'px');
-      document.documentElement.style.setProperty('--lintensity', intensity);
+    // ---------- Elements ----------
+    const drag = document.getElementById('drag');
+    const prog = document.getElementById('prog');
+    const veil = document.getElementById('veil');
+    const glow = document.getElementById('glow');
+    const lich = document.getElementById('lich');
+    const heardEl = document.getElementById('heard');
+    const micBtn = document.getElementById('micBtn');
+
+    // ---------- State ----------
+    let dragging = false;
+    let start = { t: 0, x: 0, y: 0 };
+    let last = { t: 0, y: 0 };
+    let y = 0;
+    let unlocking = false;
+
+    function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+    function setY(n){
+      y = clamp(n, 0, TARGET);
+      drag.style.setProperty('--y', y + 'px');
+      const p = y / TARGET;
+      prog.style.width = (p * 100) + '%';
+      veil.style.opacity = (1 - p).toFixed(3);
+      glow.style.opacity = (0.15 + 0.8 * p).toFixed(3);
     }
 
-    function updateFromButton(intensity=1){
-      const r = btn.getBoundingClientRect();
-      setSpot(r.left + r.width/2, r.top + r.height/2 + window.scrollY, intensity);
+    function flashEyes(){
+      glow.style.transition = 'opacity .1s linear';
+      const prev = parseFloat(glow.style.opacity) || 0.15;
+      glow.style.opacity = 1;
+      setTimeout(()=>{ glow.style.opacity = prev; }, 220);
     }
 
-    // Press → brighten; move → keep spotlight on the button; release → dark
-    const onDown = () => { updateFromButton(1); body.classList.add('lit'); };
-    const onMove = () => { if (body.classList.contains('lit')) updateFromButton(1); };
-    const onUp   = () => { body.classList.remove('lit'); setSpot(0,0,0); };
+    function unlock(){
+      if (unlocking) return;
+      unlocking = true;
+      lich.style.transform = 'translateY(-1200px)';
+      // small delay, then go to map page
+      setTimeout(()=>{ window.location.href = 'Map.html'; }, 600);
+    }
 
-    btn.addEventListener('pointerdown', onDown);
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
+    // ---------- Drag handlers ----------
+    function onDown(e){
+      dragging = true;
+      drag.style.transition = 'none';
+      start = { t: performance.now(), x: e.clientX ?? e.touches?.[0]?.clientX ?? 0, y: e.clientY ?? e.touches?.[0]?.clientY ?? 0 };
+      last  = { t: performance.now(), y: start.y };
+      drag.setPointerCapture?.(e.pointerId);
+    }
+    function onMove(e){
+      if (!dragging) return;
+      const cy = e.clientY ?? e.touches?.[0]?.clientY ?? 0;
+      const dy = cy - start.y;
+      setY(dy);
+      last = { t: performance.now(), y: cy };
+    }
+    function onUp(e){
+      if (!dragging) {
+        // simple click on the element — treat as click failure
+        flashEyes();
+        return;
+      }
+      dragging = false;
+      // Click test (tiny move & quick)
+      const dt = performance.now() - start.t;
+      const cx = e.clientX ?? e.changedTouches?.[0]?.clientX ?? 0;
+      const cy = e.clientY ?? e.changedTouches?.[0]?.clientY ?? 0;
+      const tiny = dt < 220 && Math.abs(cx - start.x) < 6 && Math.abs(cy - start.y) < 6;
+      if (tiny) {
+        flashEyes(); setY(0); return;
+      }
 
-    // Whoosh → go to map
-    btn.addEventListener('click', () => {
-      body.classList.add('whoosh');
-      setTimeout(() => window.location.href = 'map.html', 400);
+      // velocity estimate
+      const dtv = (performance.now() - last.t) || 1;
+      const vy = ((cy - last.y) / dtv) * 1000; // px/s
+      if (vy > FAST_VY) { // yanked too fast
+        flashEyes(); setY(0); return;
+      }
+
+      if (y >= UNLOCK_AT) {
+        unlock();
+      } else {
+        drag.style.transition = 'transform .2s ease-out';
+        setY(0);
+      }
+    }
+
+    // Pointer + touch
+    drag.addEventListener('pointerdown', onDown);
+    drag.addEventListener('pointermove', onMove);
+    drag.addEventListener('pointerup', onUp);
+    drag.addEventListener('touchstart', (e)=>onDown(e), {passive:true});
+    drag.addEventListener('touchmove', (e)=>onMove(e), {passive:true});
+    drag.addEventListener('touchend', (e)=>onUp(e));
+
+    // Clicking anywhere else should *not* unlock; if user clicks the drag element without moving:
+    drag.addEventListener('click', (e)=>{ flashEyes(); });
+
+    // ---------- Speech recognition ----------
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      micBtn.textContent = 'Speech not supported';
+      micBtn.disabled = true;
+    }
+
+    function normalise(s){
+      return (s||'')
+        .toLowerCase()
+        .replace(/[’']/g,"'")
+        .replace(/[^a-z0-9', ]+/g,'') // keep letters, digits, comma, apostrophe, space
+        .replace(/\s+/g,' ')
+        .trim();
+    }
+    const PASS_NORM = normalise(PASSPHRASE);
+
+    let listening = false;
+    micBtn.addEventListener('click', async ()=>{
+      if (!SR || listening) return;
+      listening = true;
+      micBtn.textContent = 'Listening…';
+
+      // Some browsers require explicit mic permission via getUserMedia first
+      try { await navigator.mediaDevices?.getUserMedia?.({ audio: true }); } catch(_){}
+
+      const rec = new SR();
+      rec.lang = 'en-GB';
+      rec.interimResults = true;
+      rec.continuous = false;
+      rec.maxAlternatives = 1;
+
+      rec.onresult = (e)=>{
+        let text = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          text += e.results[i][0].transcript;
+        }
+        const norm = normalise(text);
+        heardEl.textContent = norm || '—';
+        if (e.results[e.results.length-1].isFinal) {
+          listening = false;
+          micBtn.textContent = 'Use microphone';
+          if (norm === PASS_NORM) unlock();
+          else flashEyes();
+        }
+      };
+      rec.onend = ()=>{ listening = false; micBtn.textContent = 'Use microphone'; };
+      try { rec.start(); } catch(_){ listening = false; micBtn.textContent = 'Use microphone'; }
     });
-
-    // Initial state: pitch black
-    setSpot(0,0,0);
   </script>
 </body>
 </html>
