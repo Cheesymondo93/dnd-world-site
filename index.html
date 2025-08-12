@@ -2,39 +2,199 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Enter the Lich’s Domain</title>
   <style>
-    :root {
-      --green: #10b981;
-      --green-2: #34d399;
-      --ink: #0b1220;
-      --indigo: #6366f1;
-      --eye-blue: rgba(56,189,248,0.65);
+    :root { --green:#10b981; --green-2:#34d399; --eye-blue:rgba(56,189,248,.65); }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;overflow:hidden;overscroll-behavior:contain}
+    body{background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Helvetica,Arial}
+    .screen{position:fixed;inset:0;width:100%;min-height:100dvh;overflow:hidden;background:#000;touch-action:none}
+    .lich{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:translateY(0);opacity:1;transition:transform .6s ease-in,opacity .6s ease-in}
+    .veil{position:absolute;inset:0;background:#000;pointer-events:none}
+    .vignette{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(0,0,0,.7),rgba(0,0,0,.3),rgba(0,0,0,.8));pointer-events:none}
+    .eye-glow{position:absolute;inset:0;pointer-events:none;mix-blend-mode:screen;background:radial-gradient(ellipse at center,var(--eye-blue),transparent 45%);opacity:.15;transition:opacity .1s linear}
+    .centre{position:relative;z-index:2;min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 24px}
+    h1{font-weight:800;font-size:clamp(32px,4vw,64px);text-shadow:0 2px 12px rgba(0,0,0,.5);margin:0}
+    .drag{user-select:none;background:var(--green);border-radius:9999px;padding:14px 28px;box-shadow:0 12px 30px rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.12);font-weight:700;display:inline-block;transform:translateY(var(--y,0px));transition:transform .2s ease-out;cursor:grab;touch-action:none}
+    .hint{font-size:12px;opacity:.85}
+    .bar{position:relative;height:4px;background:rgba(0,0,0,.4);border-radius:9999px;margin-top:6px;width:100%}
+    .bar>span{display:block;height:100%;width:0;background:var(--green-2);border-radius:9999px;transition:width .06s linear}
+    .row{margin-top:18px;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap}
+    .btn{background:#0ea5e9;color:#fff;padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
+    .btn[disabled]{background:#475569;cursor:not-allowed}
+    .chip{background:#4f46e5;padding:2px 8px;border-radius:9999px;font-size:12px}
+    code{background:rgba(255,255,255,.1);padding:2px 6px;border-radius:4px}
+  </style>
+</head>
+<body>
+  <main class="screen" id="screen">
+    <img id="lich" class="lich" src="assets/lich.jpg" alt="Lich"
+         onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1612036782180-6f0b6d1a9fea?q=80&w=1920&auto=format&fit=crop';"/>
+    <div id="veil" class="veil" style="opacity:1"></div>
+    <div id="glow" class="eye-glow"></div>
+    <div class="vignette"></div>
+
+    <div class="centre">
+      <h1>Enter the Lich’s Domain</h1>
+      <p style="margin-top:12px;opacity:.9">Either <strong>drag</strong> the sigil down slowly or <strong>speak the passphrase</strong>.</p>
+
+      <div style="margin-top:24px">
+        <div id="drag" class="drag">
+          Hold &amp; drag down to enter
+          <div class="hint">(clicking or yanking fails — be gentle)</div>
+          <div class="bar"><span id="prog"></span></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="micBtn" class="btn">Use microphone</button>
+        <span class="chip">Passphrase: <code>Men To Rule, Beast To Serve</code></span>
+        <span style="font-size:12px;opacity:.9">Heard: <code id="heard">—</code></span>
+        <span id="srStatus" style="font-size:12px;opacity:.9"></span>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ---------- Config ----------
+    const PASSPHRASE = "Men To Rule, Beast To Serve";
+    const TARGET = 320, UNLOCK_AT = 260, FAST_VY = 1200;
+
+    // ---------- Elements ----------
+    const drag = document.getElementById('drag');
+    const prog = document.getElementById('prog');
+    const veil = document.getElementById('veil');
+    const glow = document.getElementById('glow');
+    const lich = document.getElementById('lich');
+    const heardEl = document.getElementById('heard');
+    const micBtn = document.getElementById('micBtn');
+    const srStatus = document.getElementById('srStatus');
+    const screen = document.getElementById('screen');
+
+    // prevent browser scroll / pull-to-refresh on touch
+    ['touchstart','touchmove','touchend','wheel'].forEach(ev=>{
+      screen.addEventListener(ev, e=>{ e.preventDefault(); }, {passive:false});
+    });
+
+    // ---------- State ----------
+    let dragging=false, unlocking=false;
+    let start={t:0,x:0,y:0}, last={t:0,y:0}, y=0;
+
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    function setY(n){
+      y = clamp(n,0,TARGET);
+      drag.style.setProperty('--y', y+'px');
+      const p = y/TARGET;
+      prog.style.width = (p*100)+'%';
+      veil.style.opacity = (1 - p).toFixed(3);
+      glow.style.opacity = (0.15 + 0.8*p).toFixed(3);
     }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; margin: 0; }
-    body { background:#000; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; }
-    .screen { position:relative; width:100%; min-height:100vh; overflow:hidden; background:#000; }
-    .lich {
-      position:absolute; inset:0; width:100%; height:100%;
-      object-fit:cover; transform:translateY(0); opacity:1;
-      transition:transform .6s ease-in, opacity .6s ease-in;
+    function flashEyes(){
+      const prev = parseFloat(glow.style.opacity)||0.15;
+      glow.style.opacity = 1;
+      setTimeout(()=>{ glow.style.opacity = prev; }, 220);
     }
-    .veil { position:absolute; inset:0; background:#000; pointer-events:none; }
-    .vignette {
-      position:absolute; inset:0;
-      background:linear-gradient(to bottom, rgba(0,0,0,.7), rgba(0,0,0,.3), rgba(0,0,0,.8));
-      pointer-events:none;
+    function unlock(){
+      if (unlocking) return;
+      unlocking = true;
+      lich.style.transform = 'translateY(-1200px)';
+      setTimeout(()=>{ window.location.href='Map.html'; }, 600);
     }
-    .eye-glow {
-      position:absolute; inset:0; pointer-events:none;
-      mix-blend-mode:screen;
-      background: radial-gradient(ellipse at center, var(--eye-blue), transparent 45%);
-      opacity:.15; transition: opacity .15s linear;
+
+    // ---------- Drag handlers ----------
+    function onDown(e){
+      dragging=true;
+      drag.style.transition='none';
+      const t = e.touches?.[0] || e;
+      start={t:performance.now(),x:t.clientX,y:t.clientY};
+      last ={t:performance.now(),y:t.clientY};
     }
-    .centre {
-      position:relative; z-index:2; min-height:100vh;
+    function onMove(e){
+      if(!dragging) return;
+      const t = e.touches?.[0] || e;
+      const dy = t.clientY - start.y;
+      setY(dy);
+      last={t:performance.now(),y:t.clientY};
+    }
+    function onUp(e){
+      const t = e.changedTouches?.[0] || e;
+      if(!dragging){ flashEyes(); return; }
+      dragging=false;
+
+      // tiny click test
+      const dt = performance.now() - start.t;
+      const tiny = dt < 220 && Math.abs(t.clientX-start.x)<6 && Math.abs(t.clientY-start.y)<6;
+      if (tiny){ flashEyes(); setY(0); return; }
+
+      // velocity
+      const dtv = (performance.now() - last.t) || 1;
+      const vy = ((t.clientY - last.y) / dtv) * 1000;
+      if (vy > FAST_VY){ flashEyes(); setY(0); return; }
+
+      if (y >= UNLOCK_AT) unlock();
+      else { drag.style.transition='transform .2s ease-out'; setY(0); }
+    }
+
+    drag.addEventListener('touchstart', onDown, {passive:false});
+    drag.addEventListener('touchmove',  onMove, {passive:false});
+    drag.addEventListener('touchend',   onUp,   {passive:false});
+    drag.addEventListener('pointerdown', onDown);
+    drag.addEventListener('pointermove', onMove);
+    drag.addEventListener('pointerup',   onUp);
+    drag.addEventListener('click', (e)=>{ e.preventDefault(); flashEyes(); });
+
+    // ---------- Speech recognition ----------
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      micBtn.textContent = 'Speech not supported';
+      micBtn.disabled = true;
+      srStatus.textContent = '(Try Chrome/Edge on Android or desktop)';
+    } else {
+      srStatus.textContent = '(en-GB)';
+    }
+
+    const normalise = s => (s||'')
+      .toLowerCase()
+      .replace(/[’']/g,\"'\")
+      .replace(/[^a-z0-9', ]+/g,'')
+      .replace(/\\s+/g,' ')
+      .trim();
+
+    const PASS_NORM = normalise(PASSPHRASE);
+
+    let listening=false;
+    micBtn.addEventListener('click', async ()=>{
+      if (!SR || listening) return;
+      listening=true;
+      micBtn.textContent='Listening…';
+      heardEl.textContent='…';
+
+      try { await navigator.mediaDevices?.getUserMedia?.({audio:true}); } catch(_){}
+      const rec = new SR();
+      rec.lang='en-GB';
+      rec.interimResults=true;
+      rec.continuous=false;
+      rec.maxAlternatives=1;
+
+      rec.onresult = (e)=>{
+        let text='';
+        for(let i=e.resultIndex;i<e.results.length;i++){ text += e.results[i][0].transcript; }
+        const norm = normalise(text);
+        heardEl.textContent = norm || '—';
+        if (e.results[e.results.length-1].isFinal){
+          listening=false; micBtn.textContent='Use microphone';
+          if (norm === PASS_NORM) unlock(); else flashEyes();
+        }
+      };
+      rec.onerror = (ev)=>{ listening=false; micBtn.textContent='Use microphone'; srStatus.textContent = 'Mic error: '+(ev.error||'unknown'); };
+      rec.onend   = ()=>{ listening=false; micBtn.textContent='Use microphone'; if(heardEl.textContent==='…') heardEl.textContent='—'; };
+
+      try { rec.start(); } catch(err){ listening=false; micBtn.textContent='Use microphone'; srStatus.textContent='Start failed'; }
+    });
+  </script>
+</body>
+</html>      position:relative; z-index:2; min-height:100vh;
       display:flex; flex-direction:column; align-items:center; justify-content:center;
       text-align:center; padding:0 24px;
     }
