@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Active Recall Studier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        
+        #typing-container { position: relative; width: 100%; }
+        #answer-textarea, #styled-display {
+            width: 100%;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 1.125rem;
+            line-height: 1.75rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            white-space: pre-wrap;
+            word-break: break-word;
+            min-height: 8rem;
+        }
+        #answer-textarea {
+            position: absolute; top: 0; left: 0; opacity: 0; z-index: 10;
+            resize: none; overflow: hidden; color: transparent; background: transparent; caret-color: black;
+        }
+        #styled-display { background-color: #f9fafb; border: 1px solid #d1d5db; color: #d1d5db; z-index: 1; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
+    <div class="max-w-4xl mx-auto p-4 py-8">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900"><i class="fa-solid fa-brain text-blue-600 mr-2"></i>Active Recall Studier</h1>
+            <div class="flex space-x-2 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+                <button id="tab-input" class="px-4 py-2 rounded-md bg-blue-100 text-blue-700 font-medium transition-colors">Input Mode</button>
+                <button id="tab-test" class="px-4 py-2 rounded-md text-gray-600 hover:bg-gray-50 font-medium transition-colors">Test Mode</button>
+            </div>
+        </header>
+
+        <!-- Input Mode View -->
+        <div id="view-input" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            
+            <!-- Import/Export Section -->
+            <div class="mb-8 bg-blue-50 p-4 rounded-lg border border-blue-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h3 class="font-bold text-blue-900 text-lg">Save Data & Progress</h3>
+                    <p class="text-sm text-blue-700">Upload your .json save file to start, and download it when you finish.</p>
+                </div>
+                <div class="flex space-x-3 w-full sm:w-auto">
+                    <label class="bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 font-medium py-2 px-4 rounded cursor-pointer transition-colors shadow-sm flex-1 sm:flex-none text-center">
+                        <i class="fa-solid fa-upload mr-2"></i> Upload File
+                        <input type="file" id="upload-file" class="hidden" accept=".json">
+                    </label>
+                    <button id="download-file" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded shadow-sm transition-colors flex-1 sm:flex-none">
+                        <i class="fa-solid fa-download mr-2"></i> Download
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center mb-6 border-t pt-6">
+                <h2 class="text-xl font-bold text-gray-800">Knowledge Base</h2>
+                <div class="flex space-x-4 text-sm text-gray-600 items-center">
+                    <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div> <50%</div>
+                    <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-orange-400 mr-2"></div> 50-90%</div>
+                    <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div> >90%</div>
+                </div>
+            </div>
+
+            <form id="add-form" class="mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div class="mb-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Question / Prompt</label>
+                    <input type="text" id="new-q" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" required>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Target Answer</label>
+                    <textarea id="new-a" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none h-24" required></textarea>
+                </div>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded">Add Card</button>
+            </form>
+            <div class="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2" id="cards-list"></div>
+        </div>
+
+        <!-- Test Config View -->
+        <div id="view-test-config" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center max-w-lg mx-auto mt-12">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Ready to test?</h2>
+            <p class="text-gray-600 mb-8">Select your active pool size. Mastered questions automatically graduate.</p>
+            
+            <div class="mb-6 text-left">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Active Pool Size</label>
+                <select id="batch-size" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="5">5 Questions (Deep Focus)</option>
+                    <option value="10">10 Questions (Moderate)</option>
+                    <option value="all">All Questions (Full mock test)</option>
+                </select>
+            </div>
+            <button id="btn-start-test" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-sm">Start Test Session</button>
+        </div>
+
+        <!-- Active Test View -->
+        <div id="view-test-active" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <div class="flex space-x-3 items-center">
+                    <button id="btn-end-test" class="text-gray-500 hover:text-gray-800 font-medium px-3 py-1.5 rounded-md hover:bg-white"><i class="fa-solid fa-arrow-left mr-2"></i>End Session</button>
+                    <span class="text-gray-400">|</span>
+                    <select id="difficulty-mode" class="bg-white border border-gray-300 text-sm rounded-md focus:ring-blue-500 p-1.5 font-medium text-blue-800 bg-blue-50">
+                        <option value="auto">Auto-Adaptive (Recommended)</option>
+                        <option value="hardcore">Force: Hardcore (Blank)</option>
+                        <option value="first_letters">Force: First Letters</option>
+                        <option value="missing_letters">Force: Missing Letters</option>
+                        <option value="every_other_word">Force: Every Other Word</option>
+                        <option value="full_text">Force: Full Text (Learning)</option>
+                    </select>
+                </div>
+                <div class="text-gray-600 font-medium" id="test-progress">Active Pool</div>
+            </div>
+
+            <!-- Flashcard -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 min-h-[400px] flex flex-col relative overflow-hidden">
+                <div id="active-mode-badge" class="absolute top-0 right-0 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-bl-lg border-b border-l border-blue-200 hidden"></div>
+                
+                <h3 class="text-2xl font-bold text-gray-800 mb-8 leading-tight" id="test-question">Question goes here?</h3>
+                <div class="flex-grow flex flex-col relative">
+                    <div id="hint-display" class="mb-4 text-gray-400 font-mono text-lg leading-relaxed whitespace-pre-wrap"></div>
+                    <div id="typing-container" class="relative">
+                        <div id="styled-display" class="text-left w-full h-full min-h-[100px]"></div>
+                        <textarea id="answer-textarea" autocomplete="off" spellcheck="false"></textarea>
+                    </div>
+                    <div id="feedback-display" class="hidden mt-6 p-4 rounded-lg border-l-4">
+                        <p class="font-bold mb-1" id="feedback-title"></p>
+                        <p class="font-mono text-gray-800" id="feedback-correct-answer"></p>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-between items-center border-t pt-4">
+                    <p class="text-sm text-gray-500"><kbd class="bg-gray-100 border rounded px-2 py-1 text-xs">Enter</kbd> to submit early.</p>
+                    <div class="text-right">
+                        <span class="text-sm text-gray-500 mr-2">Live Penalty:</span>
+                        <span id="mistake-counter" class="font-mono font-bold text-red-500">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'conveyancing-active-recall-v7'; // Bumped to clear out previous local testing data
+
+        let questions = [];
+        let currentBatch = [];
+        let batchIndex = 0;
+        let currentQuestion = null;
+        let mistakesMade = 0;
+        let lastTypedLength = 0;
+        let waitingForNext = false;
+        let lastQuestionId = null;
+        let currentActiveMode = 'full_text';
+
+        // DOM Elements
+        const tabInput = document.getElementById('tab-input');
+        const tabTest = document.getElementById('tab-test');
+        const viewInput = document.getElementById('view-input');
+        const viewTestConfig = document.getElementById('view-test-config');
+        const viewTestActive = document.getElementById('view-test-active');
+        const cardsList = document.getElementById('cards-list');
+        const addForm = document.getElementById('add-form');
+        const btnStartTest = document.getElementById('btn-start-test');
+        const btnEndTest = document.getElementById('btn-end-test');
+        const batchSizeSelect = document.getElementById('batch-size');
+        const difficultySelect = document.getElementById('difficulty-mode');
+        const testQuestionEl = document.getElementById('test-question');
+        const hintDisplayEl = document.getElementById('hint-display');
+        const styledDisplayEl = document.getElementById('styled-display');
+        const textareaEl = document.getElementById('answer-textarea');
+        const testProgressEl = document.getElementById('test-progress');
+        const mistakeCounterEl = document.getElementById('mistake-counter');
+        const feedbackDisplay = document.getElementById('feedback-display');
+        const feedbackTitle = document.getElementById('feedback-title');
+        const feedbackCorrectAnswer = document.getElementById('feedback-correct-answer');
+        const activeModeBadge = document.getElementById('active-mode-badge');
+        
+        // Import/Export Elements
+        const btnDownload = document.getElementById('download-file');
+        const inputUpload = document.getElementById('upload-file');
+
+        function init() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                questions = JSON.parse(stored);
+            } else {
+                questions = []; // Start completely empty for website hosting
+            }
+            renderCards();
+        }
+
+        function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(questions)); }
+
+        // --- IMPORT / EXPORT LOGIC ---
+        btnDownload.addEventListener('click', () => {
+            if (questions.length === 0) {
+                alert("You have no data to download yet. Add questions or upload a save file first.");
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(questions, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            const dateStr = new Date().toISOString().split('T')[0];
+            downloadAnchorNode.setAttribute("download", `study-progress-${dateStr}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        });
+
+        inputUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const imported = JSON.parse(evt.target.result);
+                    if (Array.isArray(imported) && imported.length > 0 && imported[0].hasOwnProperty('q') && imported[0].hasOwnProperty('a')) {
+                        questions = imported;
+                        saveData();
+                        renderCards();
+                        alert("Progress loaded successfully!");
+                    } else {
+                        alert("Invalid save file format. Make sure it's a JSON file exported from this app.");
+                    }
+                } catch (err) {
+                    alert("Error parsing the file.");
+                }
+                e.target.value = ''; // Reset input so the same file can be uploaded again if needed
+            };
+            reader.readAsText(file);
+        });
+        // -----------------------------
+
+        tabInput.addEventListener('click', () => { switchView('input'); renderCards(); });
+        tabTest.addEventListener('click', () => { switchView('test-config'); });
+
+        function switchView(viewName) {
+            viewInput.classList.add('hidden'); viewTestConfig.classList.add('hidden'); viewTestActive.classList.add('hidden');
+            tabInput.className = 'px-4 py-2 rounded-md text-gray-600 hover:bg-gray-50 font-medium transition-colors';
+            tabTest.className = 'px-4 py-2 rounded-md text-gray-600 hover:bg-gray-50 font-medium transition-colors';
+            if(viewName === 'input') { viewInput.classList.remove('hidden'); tabInput.classList.add('bg-blue-100', 'text-blue-700'); tabInput.classList.remove('hover:bg-gray-50', 'text-gray-600'); }
+            else if(viewName === 'test-config') { viewTestConfig.classList.remove('hidden'); tabTest.classList.add('bg-blue-100', 'text-blue-700'); tabTest.classList.remove('hover:bg-gray-50', 'text-gray-600'); }
+            else if(viewName === 'test-active') { viewTestActive.classList.remove('hidden'); tabTest.classList.add('bg-blue-100', 'text-blue-700'); tabTest.classList.remove('hover:bg-gray-50', 'text-gray-600'); }
+        }
+
+        addForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const q = document.getElementById('new-q').value.trim();
+            const a = document.getElementById('new-a').value.trim();
+            if(q && a) {
+                questions.unshift({ q, a, id: crypto.randomUUID(), history: [] });
+                saveData(); document.getElementById('new-q').value = ''; document.getElementById('new-a').value = ''; renderCards();
+            }
+        });
+
+        function getShapeHTML(mode, colorClass) {
+            const baseClass = `inline-block w-2.5 h-2.5 mr-0.5 ${colorClass}`;
+            if (mode === 'missing_letters') return `<div class="${baseClass} rounded-full" title="Missing Letters"></div>`;
+            if (mode === 'first_letters') return `<div class="${baseClass} rounded-full" style="border-radius: 2px;" title="First Letters"></div>`;
+            if (mode === 'every_other_word') return `<div class="${baseClass}" title="Every Other Word"></div>`; 
+            if (mode === 'full_text') return `<div class="inline-block mr-0.5 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[10px] ${colorClass.replace('bg-', 'border-b-')}" title="Full Text"></div>`; 
+            if (mode === 'hardcore') return `<i class="fa-solid fa-star text-[10px] mr-0.5 ${colorClass.replace('bg-', 'text-')}" title="Hardcore"></i>`;
+            return `<div class="${baseClass} rounded-full"></div>`;
+        }
+
+        function renderCards() {
+            cardsList.innerHTML = '';
+            if (questions.length === 0) {
+                cardsList.innerHTML = '<div class="text-center p-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">No cards loaded. Please upload a save file above, or add a new card to start building your deck.</div>';
+                return;
+            }
+
+            questions.forEach((item) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white border border-gray-200 rounded-lg p-4 shadow-sm';
+                let historyHTML = '';
+                if(item.history && item.history.length > 0) {
+                    historyHTML = '<div class="mt-3 flex flex-wrap items-center"><span class="text-xs text-gray-500 mr-2 uppercase tracking-wide">History:</span>';
+                    item.history.slice(-30).forEach(h => {
+                        let colorClass = h.score >= 90 ? 'bg-green-500' : (h.score >= 50 ? 'bg-orange-400' : 'bg-red-500');
+                        historyHTML += getShapeHTML(h.mode || 'missing_letters', colorClass);
+                    });
+                    historyHTML += '</div>';
+                }
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="w-full">
+                            <p class="font-bold text-gray-800 mb-1">${item.q}</p>
+                            <p class="text-gray-600 text-sm italic font-serif">"${item.a}"</p>
+                            ${historyHTML}
+                        </div>
+                        <button class="text-red-400 hover:text-red-600 ml-4 p-1" onclick="deleteCard('${item.id}')"><i class="fa-solid fa-trash"></i></button>
+                    </div>`;
+                cardsList.appendChild(card);
+            });
+        }
+        window.deleteCard = function(id) { questions = questions.filter(q => q.id !== id); saveData(); renderCards(); }
+
+        // Core App Logic
+        function isCharMatch(typed, target) {
+            if (!typed || !target) return false;
+            let t = typed.toLowerCase(), c = target.toLowerCase();
+            if (t === c) return true;
+            if (t === '-' && (c === '—' || c === '–' || c === '-')) return true;
+            if ((t === "'" || t === '"') && (c === '‘' || c === '’' || c === '“' || c === '”' || c === '"' || c === "'")) return true;
+            return false;
+        }
+
+        function getQuestionStatus(q) {
+            if (!q.history || q.history.length === 0) return 'unseen';
+            const last = q.history[q.history.length - 1];
+            if (last.mode === 'hardcore' && last.score >= 90) return 'mastered';
+            return 'learning';
+        }
+
+        function generateHint(answer, mode) {
+            if (mode === 'full_text') return answer;
+            if (mode === 'hardcore') return answer.replace(/[a-zA-Z0-9]/g, '_');
+            let words = answer.split(' ');
+            
+            if (mode === 'missing_letters') {
+                return answer.split('').map((c, i, arr) => {
+                    if (!/[a-zA-Z0-9]/.test(c)) return c; 
+                    if (i === 0 || !/[a-zA-Z0-9]/.test(arr[i-1])) return c; // Keep first letter
+                    return Math.random() > 0.4 ? '_' : c;
+                }).join('');
+            }
+            if (mode === 'first_letters') {
+                return answer.split('').map((c, i, arr) => {
+                    if (!/[a-zA-Z0-9]/.test(c)) return c;
+                    if (i === 0 || !/[a-zA-Z0-9]/.test(arr[i-1])) return c; // Keep first letter
+                    return '_';
+                }).join('');
+            }
+            if (mode === 'every_other_word') {
+                return words.map((w, i) => {
+                    if (i % 2 !== 0) {
+                        return w.split('').map((c, j) => (j === 0 || !/[a-zA-Z0-9]/.test(c)) ? c : '_').join('');
+                    }
+                    return w;
+                }).join(' ');
+            }
+            return answer;
+        }
+
+        function getModeDisplayName(mode) {
+            const map = {
+                'full_text': 'Auto: Full Text (Learning)',
+                'every_other_word': 'Auto: Every Other Word',
+                'missing_letters': 'Auto: Missing Letters',
+                'first_letters': 'Auto: First Letters Only',
+                'hardcore': 'Auto: Hardcore (Blank)'
+            };
+            return map[mode] || mode;
+        }
+
+        function fillBatch(targetSize) {
+            currentBatch = currentBatch.filter(q => getQuestionStatus(q) !== 'mastered');
+            while (currentBatch.length < targetSize) {
+                let pool = questions.filter(q => !currentBatch.find(cb => cb.id === q.id) && getQuestionStatus(q) !== 'mastered');
+                if (pool.length === 0) {
+                    pool = questions.filter(q => !currentBatch.find(cb => cb.id === q.id));
+                    if (pool.length === 0) break;
+                }
+                pool.sort((a, b) => (a.history ? a.history.length : 0) - (b.history ? b.history.length : 0));
+                currentBatch.push(pool[0]);
+            }
+        }
+
+        btnStartTest.addEventListener('click', () => {
+            if (questions.length === 0) return alert("Please add questions or upload a save file first!");
+            let size = batchSizeSelect.value === 'all' ? questions.length : parseInt(batchSizeSelect.value, 10);
+            currentBatch = [];
+            fillBatch(Math.min(size, questions.length));
+            batchIndex = 0;
+            switchView('test-active');
+            loadQuestion();
+        });
+        btnEndTest.addEventListener('click', () => switchView('test-config'));
+        difficultySelect.addEventListener('change', () => { if(currentQuestion && !waitingForNext) loadQuestion(); });
+
+        function loadQuestion() {
+            if (currentBatch.length === 0) return;
+            
+            let size = batchSizeSelect.value === 'all' ? questions.length : parseInt(batchSizeSelect.value, 10);
+            fillBatch(Math.min(size, questions.length));
+
+            const masteredPool = questions.filter(q => getQuestionStatus(q) === 'mastered' && q.id !== lastQuestionId);
+            let isReview = false;
+            
+            if (masteredPool.length > 0 && Math.random() < 0.20) {
+                currentQuestion = masteredPool[Math.floor(Math.random() * masteredPool.length)];
+                isReview = true;
+            } else {
+                if (currentBatch.length > 1 && currentBatch[batchIndex % currentBatch.length].id === lastQuestionId) batchIndex++;
+                currentQuestion = currentBatch[batchIndex % currentBatch.length];
+                batchIndex++;
+            }
+            lastQuestionId = currentQuestion.id;
+            
+            testQuestionEl.textContent = currentQuestion.q;
+            testProgressEl.innerHTML = isReview ? `<span class="text-purple-600 font-bold"><i class="fa-solid fa-rotate-left"></i> Reviewing Mastered</span>` : `Active Pool (${currentBatch.length})`;
+
+            let selectedMode = difficultySelect.value;
+            if (selectedMode === 'auto') {
+                if (!currentQuestion.history || currentQuestion.history.length === 0) {
+                    selectedMode = 'full_text'; 
+                } else {
+                    const lastScore = currentQuestion.history[currentQuestion.history.length - 1].score;
+                    const lastMode = currentQuestion.history[currentQuestion.history.length - 1].mode;
+                    const progression = ['full_text', 'every_other_word', 'missing_letters', 'first_letters', 'hardcore'];
+                    let modeIndex = Math.max(0, progression.indexOf(lastMode));
+                    
+                    if (lastScore >= 90) modeIndex = Math.min(progression.length - 1, modeIndex + 1);
+                    else if (lastScore < 50) modeIndex = 0;
+                    else modeIndex = Math.max(0, modeIndex - 1);
+                    
+                    selectedMode = progression[modeIndex];
+                }
+                activeModeBadge.classList.remove('hidden');
+                activeModeBadge.textContent = getModeDisplayName(selectedMode);
+            } else activeModeBadge.classList.add('hidden');
+            
+            currentActiveMode = selectedMode;
+            hintDisplayEl.textContent = generateHint(currentQuestion.a, currentActiveMode);
+            
+            textareaEl.value = ''; styledDisplayEl.innerHTML = '';
+            mistakesMade = 0; lastTypedLength = 0; mistakeCounterEl.textContent = '0';
+            feedbackDisplay.classList.add('hidden'); textareaEl.disabled = false; waitingForNext = false;
+            textareaEl.style.height = 'auto'; textareaEl.focus();
+        }
+
+        textareaEl.addEventListener('input', (e) => {
+            const typed = textareaEl.value, target = currentQuestion.a;
+            if (typed.length > lastTypedLength) {
+                if (typed.length <= target.length) { if (!isCharMatch(typed[typed.length - 1], target[typed.length - 1])) mistakesMade++; }
+                else mistakesMade++;
+                mistakeCounterEl.textContent = mistakesMade;
+            }
+            lastTypedLength = typed.length;
+            let html = '';
+            for (let i = 0; i < typed.length; i++) {
+                if (i >= target.length || !isCharMatch(typed[i], target[i])) html += `<span class="text-red-500 bg-red-100">${escapeHTML(typed[i])}</span>`;
+                else html += `<span class="text-gray-900">${escapeHTML(target[i])}</span>`;
+            }
+            if (typed.length < target.length) html += `<span class="text-transparent">${escapeHTML(target.substring(typed.length))}</span>`;
+            
+            styledDisplayEl.innerHTML = html;
+            textareaEl.style.height = styledDisplayEl.offsetHeight + 'px';
+            if (typed.length === target.length) setTimeout(() => { if (!waitingForNext) submitAnswer(); }, 150);
+        });
+
+        textareaEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!waitingForNext) submitAnswer(); } });
+
+        function submitAnswer() {
+            if (waitingForNext) return;
+            waitingForNext = true; textareaEl.disabled = true;
+
+            const typed = textareaEl.value, target = currentQuestion.a;
+            let totalErrors = mistakesMade + Math.max(0, target.length - typed.length);
+            let score = Math.max(0, Math.min(100, 100 - Math.round((totalErrors / target.length) * 100)));
+
+            const qIndex = questions.findIndex(q => q.id === currentQuestion.id);
+            if (qIndex > -1) {
+                if (!questions[qIndex].history) questions[qIndex].history = [];
+                questions[qIndex].history.push({ score: score, mode: currentActiveMode, date: new Date().toISOString() });
+                saveData();
+            }
+
+            feedbackDisplay.classList.remove('hidden', 'border-red-500', 'bg-red-50', 'border-orange-500', 'bg-orange-50', 'border-green-500', 'bg-green-50');
+            feedbackTitle.classList.remove('text-red-700', 'text-orange-700', 'text-green-700');
+            if (score >= 90) { feedbackDisplay.classList.add('border-green-500', 'bg-green-50'); feedbackTitle.classList.add('text-green-700'); feedbackTitle.textContent = `Excellent! Score: ${score}%`; }
+            else if (score >= 50) { feedbackDisplay.classList.add('border-orange-500', 'bg-orange-50'); feedbackTitle.classList.add('text-orange-700'); feedbackTitle.textContent = `Good try. Score: ${score}%`; }
+            else { feedbackDisplay.classList.add('border-red-500', 'bg-red-50'); feedbackTitle.classList.add('text-red-700'); feedbackTitle.textContent = `Needs review. Score: ${score}%`; }
+            
+            feedbackCorrectAnswer.textContent = target;
+            setTimeout(() => { loadQuestion(); }, score >= 90 ? 1000 : 3500);
+        }
+
+        function escapeHTML(str) { return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])); }
+        init();
+    </script>
+</body>
+</html>
