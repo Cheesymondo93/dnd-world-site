@@ -51,13 +51,16 @@
                     <h3 class="font-bold text-blue-900 text-lg">Save Data & Progress</h3>
                     <p class="text-sm text-blue-700">Upload your .json save file to start, and download it when you finish.</p>
                 </div>
-                <div class="flex space-x-3 w-full sm:w-auto">
+                <div class="flex flex-wrap gap-2 w-full sm:w-auto">
                     <label class="bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 font-medium py-2 px-4 rounded cursor-pointer transition-colors shadow-sm flex-1 sm:flex-none text-center">
-                        <i class="fa-solid fa-upload mr-2"></i> Upload File
+                        <i class="fa-solid fa-upload mr-2"></i> Upload
                         <input type="file" id="upload-file" class="hidden" accept=".json">
                     </label>
                     <button id="download-file" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded shadow-sm transition-colors flex-1 sm:flex-none">
                         <i class="fa-solid fa-download mr-2"></i> Download
+                    </button>
+                    <button id="clear-data" class="bg-red-100 border border-red-200 hover:bg-red-200 text-red-700 font-medium py-2 px-4 rounded shadow-sm transition-colors flex-1 sm:flex-none">
+                        <i class="fa-solid fa-trash mr-2"></i> Clear App
                     </button>
                 </div>
             </div>
@@ -107,6 +110,12 @@
                 <div class="flex space-x-3 items-center">
                     <button id="btn-end-test" class="text-gray-500 hover:text-gray-800 font-medium px-3 py-1.5 rounded-md hover:bg-white"><i class="fa-solid fa-arrow-left mr-2"></i>End Session</button>
                     <span class="text-gray-400">|</span>
+                    
+                    <!-- NEW KEYBOARD TOGGLE BUTTON -->
+                    <button id="btn-toggle-keyboard" class="text-gray-500 hover:text-gray-800 font-medium px-3 py-1.5 rounded-md hover:bg-white transition-colors" title="Toggle Virtual Keyboard">
+                        <i class="fa-solid fa-keyboard"></i>
+                    </button>
+                    
                     <select id="difficulty-mode" class="bg-white border border-gray-300 text-sm rounded-md focus:ring-blue-500 p-1.5 font-medium text-blue-800 bg-blue-50">
                         <option value="auto">Auto-Adaptive (Recommended)</option>
                         <option value="hardcore">Force: Hardcore (Blank)</option>
@@ -142,12 +151,16 @@
                         <span id="mistake-counter" class="font-mono font-bold text-red-500">0</span>
                     </div>
                 </div>
+                
+                <!-- NEW VIRTUAL KEYBOARD CONTAINER -->
+                <div id="virtual-keyboard-container" class="mt-6 hidden flex flex-col gap-2 select-none border-t pt-6"></div>
+                
             </div>
         </div>
     </div>
 
     <script>
-        const STORAGE_KEY = 'conveyancing-active-recall-v7'; // Bumped to clear out previous local testing data
+        const STORAGE_KEY = 'conveyancing-active-recall-v7';
 
         let questions = [];
         let currentBatch = [];
@@ -158,6 +171,12 @@
         let waitingForNext = false;
         let lastQuestionId = null;
         let currentActiveMode = 'full_text';
+        let failedGuessesByPosition = {}; // NEW: Track failed guesses per position
+        
+        // Timer State
+        let questionStartTime = 0;
+        let idleTimer = null;
+        let keyboardVisible = false;
 
         // DOM Elements
         const tabInput = document.getElementById('tab-input');
@@ -182,23 +201,130 @@
         const feedbackCorrectAnswer = document.getElementById('feedback-correct-answer');
         const activeModeBadge = document.getElementById('active-mode-badge');
         
-        // Import/Export Elements
+        // Import/Export/Keyboard Elements
         const btnDownload = document.getElementById('download-file');
         const inputUpload = document.getElementById('upload-file');
+        const btnClearData = document.getElementById('clear-data');
+        const btnToggleKeyboard = document.getElementById('btn-toggle-keyboard');
+        const keyboardContainer = document.getElementById('virtual-keyboard-container');
 
         function init() {
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
                 questions = JSON.parse(stored);
             } else {
-                questions = []; // Start completely empty for website hosting
+                questions = [];
             }
             renderCards();
+            renderKeyboard();
         }
 
         function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(questions)); }
 
-        // --- IMPORT / EXPORT LOGIC ---
+        // --- KEYBOARD RENDERING & LOGIC ---
+        function renderKeyboard() {
+            const layout = [
+                ['q','w','e','r','t','y','u','i','o','p'],
+                ['a','s','d','f','g','h','j','k','l'],
+                ['z','x','c','v','b','n','m'],
+                [' ', '-', '\'', '"']
+            ];
+            keyboardContainer.innerHTML = '';
+            layout.forEach(row => {
+                const rowEl = document.createElement('div');
+                rowEl.className = 'flex justify-center gap-1 sm:gap-2';
+                row.forEach(key => {
+                    const keyEl = document.createElement('button');
+                    keyEl.className = 'vk-key px-2 py-3 sm:px-4 sm:py-3 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-bold uppercase transition-all flex-1 max-w-[2.5rem] sm:max-w-[3.5rem] text-center text-sm sm:text-base';
+                    if (key === ' ') {
+                        keyEl.classList.replace('max-w-[2.5rem]', 'max-w-[8rem]');
+                        keyEl.classList.replace('sm:max-w-[3.5rem]', 'sm:max-w-[10rem]');
+                        keyEl.textContent = 'SPACE';
+                    } else {
+                        keyEl.textContent = key;
+                    }
+                    keyEl.dataset.key = key;
+                    
+                    // Stop the button from taking away text focus
+                    keyEl.addEventListener('mousedown', (e) => e.preventDefault()); 
+                    
+                    // Add char to textarea when clicked
+                    keyEl.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (textareaEl.disabled) return;
+                        textareaEl.value += key;
+                        textareaEl.dispatchEvent(new Event('input')); // trigger logic
+                        textareaEl.focus();
+                    });
+                    rowEl.appendChild(keyEl);
+                });
+                keyboardContainer.appendChild(rowEl);
+            });
+        }
+
+        btnToggleKeyboard.addEventListener('click', () => {
+            keyboardVisible = !keyboardVisible;
+            if (keyboardVisible) {
+                keyboardContainer.classList.remove('hidden');
+                btnToggleKeyboard.classList.add('text-blue-600', 'bg-blue-50');
+                resetIdleTimer(); // start tracking idle time if open
+            } else {
+                keyboardContainer.classList.add('hidden');
+                btnToggleKeyboard.classList.remove('text-blue-600', 'bg-blue-50');
+                clearTimeout(idleTimer);
+            }
+        });
+
+        function clearKeyboardStyles() {
+            document.querySelectorAll('.vk-key').forEach(k => {
+                k.classList.remove('line-through', 'text-red-500', 'bg-red-100', 'border-red-300', 'ring-4', 'ring-yellow-400', 'bg-yellow-100');
+            });
+        }
+
+        function normalizeChar(c) {
+            if (!c) return c;
+            let t = c.toLowerCase();
+            if (t === '—' || t === '–') return '-';
+            if (t === '‘' || t === '’' || t === '“' || t === '”') return "'";
+            return t;
+        }
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            if (textareaEl.disabled || !keyboardVisible) return;
+            // 10 seconds of inactivity triggers a hint for testing
+            idleTimer = setTimeout(() => {
+                showKeyboardHint();
+            }, 10000);
+        }
+
+        function showKeyboardHint() {
+            if (!currentQuestion) return;
+            const typed = textareaEl.value, target = currentQuestion.a;
+            if (typed.length >= target.length) return;
+            
+            const nextChar = normalizeChar(target[typed.length]);
+            const allKeys = Array.from(document.querySelectorAll('.vk-key'));
+            
+            // Clear existing highlights
+            allKeys.forEach(k => k.classList.remove('ring-4', 'ring-yellow-400', 'bg-yellow-100'));
+            
+            let highlightKeys = [];
+            const nextKeyEl = allKeys.find(k => k.dataset.key === nextChar);
+            if (nextKeyEl) highlightKeys.push(nextKeyEl);
+            
+            // Get 4 other random valid keys
+            const otherKeys = allKeys.filter(k => k.dataset.key !== nextChar && /[a-z \-'\"]/.test(k.dataset.key));
+            otherKeys.sort(() => 0.5 - Math.random());
+            
+            highlightKeys = highlightKeys.concat(otherKeys.slice(0, 5 - highlightKeys.length));
+            
+            // Highlight them all
+            highlightKeys.forEach(k => k.classList.add('ring-4', 'ring-yellow-400', 'bg-yellow-100'));
+        }
+        // ----------------------------------
+
+        // --- IMPORT / EXPORT / CLEAR LOGIC ---
         btnDownload.addEventListener('click', () => {
             if (questions.length === 0) {
                 alert("You have no data to download yet. Add questions or upload a save file first.");
@@ -232,9 +358,17 @@
                 } catch (err) {
                     alert("Error parsing the file.");
                 }
-                e.target.value = ''; // Reset input so the same file can be uploaded again if needed
+                e.target.value = ''; 
             };
             reader.readAsText(file);
+        });
+
+        btnClearData.addEventListener('click', () => {
+            if(confirm("Are you sure you want to clear all data from this browser? Ensure you have downloaded your progress first!")) {
+                localStorage.removeItem(STORAGE_KEY);
+                questions = [];
+                renderCards();
+            }
         });
         // -----------------------------
 
@@ -328,14 +462,14 @@
             if (mode === 'missing_letters') {
                 return answer.split('').map((c, i, arr) => {
                     if (!/[a-zA-Z0-9]/.test(c)) return c; 
-                    if (i === 0 || !/[a-zA-Z0-9]/.test(arr[i-1])) return c; // Keep first letter
+                    if (i === 0 || !/[a-zA-Z0-9]/.test(arr[i-1])) return c; 
                     return Math.random() > 0.4 ? '_' : c;
                 }).join('');
             }
             if (mode === 'first_letters') {
                 return answer.split('').map((c, i, arr) => {
                     if (!/[a-zA-Z0-9]/.test(c)) return c;
-                    if (i === 0 || !/[a-zA-Z0-9]/.test(arr[i-1])) return c; // Keep first letter
+                    if (i === 0 || !/[a-zA-Z0-9]/.test(arr[i-1])) return c; 
                     return '_';
                 }).join('');
             }
@@ -383,7 +517,12 @@
             switchView('test-active');
             loadQuestion();
         });
-        btnEndTest.addEventListener('click', () => switchView('test-config'));
+        
+        btnEndTest.addEventListener('click', () => {
+            clearTimeout(idleTimer);
+            switchView('test-config');
+        });
+        
         difficultySelect.addEventListener('change', () => { if(currentQuestion && !waitingForNext) loadQuestion(); });
 
         function loadQuestion() {
@@ -435,16 +574,58 @@
             mistakesMade = 0; lastTypedLength = 0; mistakeCounterEl.textContent = '0';
             feedbackDisplay.classList.add('hidden'); textareaEl.disabled = false; waitingForNext = false;
             textareaEl.style.height = 'auto'; textareaEl.focus();
+            
+            questionStartTime = Date.now();
+            failedGuessesByPosition = {}; // NEW: Reset failed guesses for new question
+            clearKeyboardStyles();
+            resetIdleTimer();
         }
 
         textareaEl.addEventListener('input', (e) => {
             const typed = textareaEl.value, target = currentQuestion.a;
+            
             if (typed.length > lastTypedLength) {
-                if (typed.length <= target.length) { if (!isCharMatch(typed[typed.length - 1], target[typed.length - 1])) mistakesMade++; }
-                else mistakesMade++;
+                const newChar = typed[typed.length - 1];
+                const targetChar = target[typed.length - 1];
+                let isError = false;
+                
+                if (typed.length <= target.length) {
+                    if (!isCharMatch(newChar, targetChar)) isError = true;
+                } else {
+                    isError = true;
+                }
+                
+                if (isError) {
+                    mistakesMade++;
+                    const pos = typed.length - 1;
+                    if (!failedGuessesByPosition[pos]) failedGuessesByPosition[pos] = new Set();
+                    failedGuessesByPosition[pos].add(normalizeChar(newChar));
+                }
                 mistakeCounterEl.textContent = mistakesMade;
             }
             lastTypedLength = typed.length;
+            
+            // Determine active position (first error, or end of typed string)
+            let activePos = typed.length;
+            for (let i = 0; i < typed.length; i++) {
+                if (i >= target.length || !isCharMatch(typed[i], target[i])) {
+                    activePos = i;
+                    break;
+                }
+            }
+
+            clearKeyboardStyles(); 
+            resetIdleTimer(); 
+            
+            // Apply strike-outs for the active position
+            if (keyboardVisible && failedGuessesByPosition[activePos]) {
+                const keys = Array.from(document.querySelectorAll('.vk-key'));
+                failedGuessesByPosition[activePos].forEach(char => {
+                    const badKey = keys.find(k => k.dataset.key === char);
+                    if (badKey) badKey.classList.add('line-through', 'text-red-500', 'bg-red-100', 'border-red-300');
+                });
+            }
+            
             let html = '';
             for (let i = 0; i < typed.length; i++) {
                 if (i >= target.length || !isCharMatch(typed[i], target[i])) html += `<span class="text-red-500 bg-red-100">${escapeHTML(typed[i])}</span>`;
@@ -457,28 +638,41 @@
             if (typed.length === target.length) setTimeout(() => { if (!waitingForNext) submitAnswer(); }, 150);
         });
 
-        textareaEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!waitingForNext) submitAnswer(); } });
+        textareaEl.addEventListener('keydown', (e) => { 
+            if (e.key === 'Enter') { 
+                e.preventDefault(); 
+                if (!waitingForNext) submitAnswer(); 
+            } 
+        });
 
         function submitAnswer() {
             if (waitingForNext) return;
-            waitingForNext = true; textareaEl.disabled = true;
+            waitingForNext = true; 
+            textareaEl.disabled = true;
+            clearTimeout(idleTimer);
 
             const typed = textareaEl.value, target = currentQuestion.a;
             let totalErrors = mistakesMade + Math.max(0, target.length - typed.length);
             let score = Math.max(0, Math.min(100, 100 - Math.round((totalErrors / target.length) * 100)));
+            
+            const timeTaken = (Date.now() - questionStartTime) / 1000;
+            const cpm = Math.round((typed.length / (timeTaken || 1)) * 60);
 
             const qIndex = questions.findIndex(q => q.id === currentQuestion.id);
             if (qIndex > -1) {
                 if (!questions[qIndex].history) questions[qIndex].history = [];
-                questions[qIndex].history.push({ score: score, mode: currentActiveMode, date: new Date().toISOString() });
+                questions[qIndex].history.push({ score: score, speed: timeTaken, mode: currentActiveMode, date: new Date().toISOString() });
                 saveData();
             }
 
             feedbackDisplay.classList.remove('hidden', 'border-red-500', 'bg-red-50', 'border-orange-500', 'bg-orange-50', 'border-green-500', 'bg-green-50');
             feedbackTitle.classList.remove('text-red-700', 'text-orange-700', 'text-green-700');
-            if (score >= 90) { feedbackDisplay.classList.add('border-green-500', 'bg-green-50'); feedbackTitle.classList.add('text-green-700'); feedbackTitle.textContent = `Excellent! Score: ${score}%`; }
-            else if (score >= 50) { feedbackDisplay.classList.add('border-orange-500', 'bg-orange-50'); feedbackTitle.classList.add('text-orange-700'); feedbackTitle.textContent = `Good try. Score: ${score}%`; }
-            else { feedbackDisplay.classList.add('border-red-500', 'bg-red-50'); feedbackTitle.classList.add('text-red-700'); feedbackTitle.textContent = `Needs review. Score: ${score}%`; }
+            
+            const speedText = `<span class="text-sm font-normal ml-3 inline-block bg-white/50 px-2 py-0.5 rounded shadow-sm border border-black/5">Speed: ${timeTaken.toFixed(1)}s (${cpm} CPM)</span>`;
+            
+            if (score >= 90) { feedbackDisplay.classList.add('border-green-500', 'bg-green-50'); feedbackTitle.classList.add('text-green-700'); feedbackTitle.innerHTML = `Excellent! Accuracy: ${score}% ${speedText}`; }
+            else if (score >= 50) { feedbackDisplay.classList.add('border-orange-500', 'bg-orange-50'); feedbackTitle.classList.add('text-orange-700'); feedbackTitle.innerHTML = `Good try. Accuracy: ${score}% ${speedText}`; }
+            else { feedbackDisplay.classList.add('border-red-500', 'bg-red-50'); feedbackTitle.classList.add('text-red-700'); feedbackTitle.innerHTML = `Needs review. Accuracy: ${score}% ${speedText}`; }
             
             feedbackCorrectAnswer.textContent = target;
             setTimeout(() => { loadQuestion(); }, score >= 90 ? 1000 : 3500);
