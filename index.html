@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Active Recall Studier</title>
+    <title>Active Recall LMS</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
         #typing-container { position: relative; width: 100%; }
         #answer-textarea, #styled-display {
             width: 100%;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 1.125rem;
             line-height: 1.75rem;
             padding: 1rem;
@@ -28,434 +28,548 @@
             position: absolute; top: 0; left: 0; opacity: 0; z-index: 10;
             resize: none; overflow: hidden; color: transparent; background: transparent; caret-color: black;
         }
-        #styled-display { background-color: #f9fafb; border: 1px solid #d1d5db; color: #d1d5db; z-index: 1; }
+        #styled-display { background-color: #f8fafc; border: 1px solid #cbd5e1; color: #cbd5e1; z-index: 1; }
+        
+        .word-btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .word-btn:active { transform: scale(0.95); }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake-err { animation: shake 0.3s ease-in-out; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
-    <div class="max-w-4xl mx-auto p-4 py-8">
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans selection:bg-blue-200">
+    <div class="max-w-5xl mx-auto p-4 py-8">
+        
         <!-- Header -->
         <header class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-900"><i class="fa-solid fa-brain text-blue-600 mr-2"></i>Active Recall Studier</h1>
-            <div class="flex space-x-2 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
-                <button id="tab-input" class="px-4 py-2 rounded-md bg-blue-100 text-blue-700 font-medium transition-colors">Input Mode</button>
-                <button id="tab-test" class="px-4 py-2 rounded-md text-gray-600 hover:bg-gray-50 font-medium transition-colors">Test Mode</button>
+            <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight"><i class="fa-solid fa-brain text-indigo-600 mr-3"></i>LMS Conveyor</h1>
+            <div class="flex space-x-2 bg-white rounded-lg p-1 shadow-sm border border-slate-200">
+                <button id="tab-dash" class="px-4 py-2 rounded-md bg-indigo-50 text-indigo-700 font-bold transition-colors">Dashboard</button>
+                <button id="tab-kb" class="px-4 py-2 rounded-md text-slate-500 hover:bg-slate-50 font-medium transition-colors">Knowledge Base</button>
             </div>
         </header>
 
-        <!-- Input Mode View -->
-        <div id="view-input" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            
-            <!-- Import/Export Section -->
-            <div class="mb-8 bg-blue-50 p-4 rounded-lg border border-blue-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <!-- DASHBOARD VIEW (THE CONVEYOR BELT) -->
+        <div id="view-dash" class="space-y-6">
+            <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
+                <h2 class="text-2xl font-bold text-slate-800 mb-2">Welcome to your Training Dashboard</h2>
+                <p class="text-slate-500 mb-8 max-w-2xl mx-auto">Follow the conveyor belt. Start by reading new material, train your pattern recognition, master the recall, and maintain it in the vault.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    
+                    <!-- Zone 1: Reading Room -->
+                    <div class="bg-slate-50 rounded-xl p-5 border-2 border-slate-200 flex flex-col h-full relative overflow-hidden group hover:border-slate-300 transition-colors">
+                        <div class="absolute top-0 right-0 p-3 opacity-10"><i class="fa-solid fa-book-open text-6xl"></i></div>
+                        <h3 class="font-bold text-slate-700 text-lg mb-1 flex items-center"><div class="w-3 h-3 rounded-full bg-slate-400 mr-2"></div> Zone 1: Read</h3>
+                        <p class="text-xs text-slate-500 mb-4 h-10">Unseen cards. Play the "Next Word" game to encode meaning.</p>
+                        <div class="text-4xl font-black text-slate-800 mb-4" id="count-z1">0</div>
+                        <button onclick="startSession('z1')" class="mt-auto w-full bg-slate-800 hover:bg-slate-900 text-white font-medium py-2 rounded-lg transition-colors">Start Reading</button>
+                    </div>
+
+                    <!-- Zone 2: Training Ground -->
+                    <div class="bg-blue-50 rounded-xl p-5 border-2 border-blue-200 flex flex-col h-full relative overflow-hidden group hover:border-blue-300 transition-colors">
+                        <div class="absolute top-0 right-0 p-3 opacity-10"><i class="fa-solid fa-dumbbell text-6xl text-blue-600"></i></div>
+                        <h3 class="font-bold text-blue-800 text-lg mb-1 flex items-center"><div class="w-3 h-3 rounded-full bg-blue-500 mr-2"></div> Zone 2: Train</h3>
+                        <p class="text-xs text-blue-600/70 mb-4 h-10">Adaptive typing with fading letter hints.</p>
+                        <div class="text-4xl font-black text-blue-900 mb-4" id="count-z2">0</div>
+                        <button onclick="startSession('z2')" class="mt-auto w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition-colors">Start Training</button>
+                    </div>
+
+                    <!-- Zone 3: Mastery Arena -->
+                    <div class="bg-orange-50 rounded-xl p-5 border-2 border-orange-200 flex flex-col h-full relative overflow-hidden group hover:border-orange-300 transition-colors">
+                        <div class="absolute top-0 right-0 p-3 opacity-10"><i class="fa-solid fa-fire text-6xl text-orange-600"></i></div>
+                        <h3 class="font-bold text-orange-800 text-lg mb-1 flex items-center"><div class="w-3 h-3 rounded-full bg-orange-500 mr-2"></div> Zone 3: Master</h3>
+                        <p class="text-xs text-orange-600/70 mb-4 h-10">Hardcore blank typing. Focus on speed and accuracy.</p>
+                        <div class="text-4xl font-black text-orange-900 mb-4" id="count-z3">0</div>
+                        <button onclick="startSession('z3')" class="mt-auto w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 rounded-lg transition-colors">Enter Arena</button>
+                    </div>
+
+                    <!-- Zone 4: The Vault -->
+                    <div class="bg-emerald-50 rounded-xl p-5 border-2 border-emerald-200 flex flex-col h-full relative overflow-hidden group hover:border-emerald-300 transition-colors">
+                        <div class="absolute top-0 right-0 p-3 opacity-10"><i class="fa-solid fa-vault text-6xl text-emerald-600"></i></div>
+                        <h3 class="font-bold text-emerald-800 text-lg mb-1 flex items-center"><div class="w-3 h-3 rounded-full bg-emerald-500 mr-2"></div> Zone 4: Vault</h3>
+                        <p class="text-xs text-emerald-600/70 mb-4 h-10">Spaced repetition reviews due today.</p>
+                        <div class="text-4xl font-black text-emerald-900 mb-4" id="count-z4">0</div>
+                        <button onclick="startSession('z4')" class="mt-auto w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition-colors">Daily Review</button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- KNOWLEDGE BASE VIEW -->
+        <div id="view-kb" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
+            <div class="mb-8 bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h3 class="font-bold text-blue-900 text-lg">Save Data & Progress</h3>
-                    <p class="text-sm text-blue-700">Upload your .json save file to start, and download it when you finish.</p>
+                    <h3 class="font-bold text-indigo-900 text-lg">Save Data & Progress</h3>
+                    <p class="text-sm text-indigo-700">Upload JSON decks or backup your current progress.</p>
                 </div>
                 <div class="flex flex-wrap gap-2 w-full sm:w-auto">
-                    <label class="bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 font-medium py-2 px-4 rounded cursor-pointer transition-colors shadow-sm flex-1 sm:flex-none text-center">
+                    <label class="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold py-2 px-4 rounded-lg cursor-pointer transition-colors shadow-sm flex-1 sm:flex-none text-center">
                         <i class="fa-solid fa-upload mr-2"></i> Upload
                         <input type="file" id="upload-file" class="hidden" accept=".json">
                     </label>
-                    <button id="download-file" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded shadow-sm transition-colors flex-1 sm:flex-none">
-                        <i class="fa-solid fa-download mr-2"></i> Download
+                    <button id="download-file" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition-colors flex-1 sm:flex-none">
+                        <i class="fa-solid fa-download mr-2"></i> Backup
                     </button>
-                    <button id="clear-data" class="bg-red-100 border border-red-200 hover:bg-red-200 text-red-700 font-medium py-2 px-4 rounded shadow-sm transition-colors flex-1 sm:flex-none">
-                        <i class="fa-solid fa-trash mr-2"></i> Clear App
+                    <button id="clear-data" class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-semibold py-2 px-4 rounded-lg transition-colors flex-1 sm:flex-none">
+                        Clear App
                     </button>
                 </div>
             </div>
 
-            <div class="flex justify-between items-center mb-6 border-t pt-6">
-                <h2 class="text-xl font-bold text-gray-800">Knowledge Base</h2>
-                <div class="flex space-x-4 text-sm text-gray-600 items-center">
-                    <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div> <50%</div>
-                    <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-orange-400 mr-2"></div> 50-90%</div>
-                    <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div> >90%</div>
+            <h2 class="text-xl font-bold text-slate-800 mb-4">Add New Card</h2>
+            <form id="add-form" class="mb-10 bg-slate-50 p-5 rounded-xl border border-slate-200">
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">Prompt / Question</label>
+                    <input type="text" id="new-q" class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow" required>
                 </div>
-            </div>
-
-            <form id="add-form" class="mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <div class="mb-3">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Question / Prompt</label>
-                    <input type="text" id="new-q" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" required>
+                <div class="mb-4">
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">Target Answer</label>
+                    <textarea id="new-a" class="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none h-24 transition-shadow" required></textarea>
                 </div>
-                <div class="mb-3">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Target Answer</label>
-                    <textarea id="new-a" class="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none h-24" required></textarea>
-                </div>
-                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded">Add Card</button>
+                <button type="submit" class="bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 px-6 rounded-lg transition-colors">Add to Zone 1</button>
             </form>
-            <div class="space-y-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2" id="cards-list"></div>
-        </div>
 
-        <!-- Test Config View -->
-        <div id="view-test-config" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center max-w-lg mx-auto mt-12">
-            <h2 class="text-2xl font-bold text-gray-800 mb-2">Ready to test?</h2>
-            <p class="text-gray-600 mb-8">Select your active pool size. Mastered questions automatically graduate.</p>
-            
-            <div class="mb-6 text-left">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Active Pool Size</label>
-                <select id="batch-size" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                    <option value="5">5 Questions (Deep Focus)</option>
-                    <option value="10">10 Questions (Moderate)</option>
-                    <option value="all">All Questions (Full mock test)</option>
-                </select>
+            <div class="flex justify-between items-end mb-4 border-b pb-2">
+                <h2 class="text-xl font-bold text-slate-800">Deck Inventory</h2>
             </div>
-            <button id="btn-start-test" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-sm">Start Test Session</button>
+            <div class="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar pr-2" id="cards-list"></div>
         </div>
 
-        <!-- Active Test View -->
-        <div id="view-test-active" class="hidden">
+        <!-- ACTIVE STUDY VIEW -->
+        <div id="view-study" class="hidden">
             <div class="flex justify-between items-center mb-6">
-                <div class="flex space-x-3 items-center">
-                    <button id="btn-end-test" class="text-gray-500 hover:text-gray-800 font-medium px-3 py-1.5 rounded-md hover:bg-white"><i class="fa-solid fa-arrow-left mr-2"></i>End Session</button>
-                    <span class="text-gray-400">|</span>
-                    
-                    <!-- NEW KEYBOARD TOGGLE BUTTON -->
-                    <button id="btn-toggle-keyboard" class="text-gray-500 hover:text-gray-800 font-medium px-3 py-1.5 rounded-md hover:bg-white transition-colors" title="Toggle Virtual Keyboard">
-                        <i class="fa-solid fa-keyboard"></i>
-                    </button>
-                    
-                    <select id="difficulty-mode" class="bg-white border border-gray-300 text-sm rounded-md focus:ring-blue-500 p-1.5 font-medium text-blue-800 bg-blue-50">
-                        <option value="auto">Auto-Adaptive (Recommended)</option>
-                        <option value="hardcore">Force: Hardcore (Blank)</option>
-                        <option value="first_letters">Force: First Letters</option>
-                        <option value="missing_letters">Force: Missing Letters</option>
-                        <option value="every_other_word">Force: Every Other Word</option>
-                        <option value="full_text">Force: Full Text (Learning)</option>
-                    </select>
+                <button onclick="endSession()" class="text-slate-500 hover:text-slate-800 font-bold px-3 py-1.5 rounded-lg hover:bg-slate-200 transition-colors flex items-center">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> Back to Dash
+                </button>
+                <div class="text-slate-500 font-semibold bg-white px-3 py-1 rounded-full shadow-sm border border-slate-200 text-sm">
+                    Card <span id="study-progress" class="text-indigo-600">1/5</span>
                 </div>
-                <div class="text-gray-600 font-medium" id="test-progress">Active Pool</div>
             </div>
 
-            <!-- Flashcard -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 min-h-[400px] flex flex-col relative overflow-hidden">
-                <div id="active-mode-badge" class="absolute top-0 right-0 bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-bl-lg border-b border-l border-blue-200 hidden"></div>
+            <!-- The Flashcard -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-10 min-h-[450px] flex flex-col relative overflow-hidden">
+                <div id="zone-badge" class="absolute top-0 right-0 text-xs font-bold px-4 py-1.5 rounded-bl-xl border-b border-l"></div>
                 
-                <h3 class="text-2xl font-bold text-gray-800 mb-8 leading-tight" id="test-question">Question goes here?</h3>
-                <div class="flex-grow flex flex-col relative">
-                    <div id="hint-display" class="mb-4 text-gray-400 font-mono text-lg leading-relaxed whitespace-pre-wrap"></div>
-                    <div id="typing-container" class="relative">
-                        <div id="styled-display" class="text-left w-full h-full min-h-[100px]"></div>
-                        <textarea id="answer-textarea" autocomplete="off" spellcheck="false"></textarea>
+                <h3 class="text-2xl sm:text-3xl font-extrabold text-slate-800 mb-8 leading-tight pr-24" id="study-question">Question goes here?</h3>
+                
+                <div class="flex-grow flex flex-col relative w-full">
+                    
+                    <!-- ========================================== -->
+                    <!-- INTERFACE 0: READING PHASE (ZONE 1 START)  -->
+                    <!-- ========================================== -->
+                    <div id="interface-read" class="hidden flex-col h-full flex-grow">
+                        <div class="mb-2 text-sm font-bold text-slate-400 uppercase tracking-wider">Step 1: Read & Encode</div>
+                        <div class="w-full flex-grow p-6 sm:p-8 bg-slate-50 border border-slate-200 rounded-xl mb-6 flex items-center justify-center text-center min-h-[150px]">
+                            <p class="text-xl sm:text-2xl text-slate-700 font-serif leading-relaxed" id="read-answer-text"></p>
+                        </div>
+                        <div class="mt-auto border-t border-slate-100 pt-6 flex justify-between items-center">
+                            <p class="text-sm text-slate-500"><kbd class="bg-slate-100 border border-slate-200 rounded px-2 py-1 text-xs font-mono">Enter</kbd> to begin practice</p>
+                            <button id="btn-start-click-game" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-lg transition-colors shadow-sm">
+                                Ready to Practice <i class="fa-solid fa-arrow-right ml-1"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div id="feedback-display" class="hidden mt-6 p-4 rounded-lg border-l-4">
-                        <p class="font-bold mb-1" id="feedback-title"></p>
-                        <p class="font-mono text-gray-800" id="feedback-correct-answer"></p>
+
+                    <!-- ========================================== -->
+                    <!-- INTERFACE A: CLICK THE NEXT WORD (ZONE 1)  -->
+                    <!-- ========================================== -->
+                    <div id="interface-click" class="hidden flex-col h-full">
+                        <div class="mb-2 text-sm font-bold text-slate-400 uppercase tracking-wider">Construct the Answer:</div>
+                        
+                        <!-- Assembled Area -->
+                        <div id="assembled-area" class="w-full min-h-[100px] p-4 bg-slate-50 border border-slate-200 rounded-xl mb-6 flex flex-wrap gap-2 items-start content-start">
+                            <!-- Clicked words go here -->
+                        </div>
+
+                        <div class="mt-auto pt-6 border-t border-slate-100">
+                            <div class="mb-3 text-sm font-medium text-slate-500"><i class="fa-solid fa-hand-pointer mr-1"></i> Select the next logical word:</div>
+                            <!-- Word Bank -->
+                            <div id="word-bank" class="flex flex-wrap gap-2.5">
+                                <!-- Scrambled buttons go here -->
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- ========================================== -->
+                    <!-- INTERFACE B: ADAPTIVE TYPING (ZONE 2,3,4)  -->
+                    <!-- ========================================== -->
+                    <div id="interface-type" class="hidden flex-col h-full">
+                        <!-- Hint Display -->
+                        <div id="hint-display" class="mb-4 text-slate-400 font-mono text-lg leading-relaxed whitespace-pre-wrap"></div>
+                        
+                        <!-- Textarea overlapping styled display -->
+                        <div id="typing-container" class="relative">
+                            <div id="styled-display" class="text-left w-full h-full min-h-[120px]"></div>
+                            <textarea id="answer-textarea" autocomplete="off" spellcheck="false"></textarea>
+                        </div>
+                        
+                        <!-- Stats Bar -->
+                        <div class="mt-6 flex justify-between items-center border-t border-slate-100 pt-4">
+                            <div class="flex space-x-2">
+                                <button id="btn-toggle-keyboard" class="text-slate-400 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors" title="Toggle Virtual Keyboard">
+                                    <i class="fa-solid fa-keyboard"></i>
+                                </button>
+                                <span id="timer-display" class="text-sm font-mono bg-slate-100 text-slate-500 px-2 py-1.5 rounded-lg flex items-center border border-slate-200"><i class="fa-regular fa-clock mr-1.5"></i> 0.0s</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-sm text-slate-500 mr-2 font-medium">Errors:</span>
+                                <span id="mistake-counter" class="font-mono font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-100">0</span>
+                            </div>
+                        </div>
+
+                        <!-- Virtual Keyboard -->
+                        <div id="virtual-keyboard-container" class="mt-4 hidden flex flex-col gap-2 select-none"></div>
+                    </div>
+                    
+                    <!-- ========================================== -->
+                    <!-- POST-ANSWER FEEDBACK AREA                  -->
+                    <!-- ========================================== -->
+                    <div id="feedback-display" class="hidden mt-6 p-5 rounded-xl border-l-4 shadow-sm relative overflow-hidden">
+                        <p class="font-black text-lg mb-2 flex items-center" id="feedback-title"></p>
+                        <p class="font-mono text-slate-700 bg-white/50 p-3 rounded-lg border border-black/5" id="feedback-correct-answer"></p>
+                        <button id="btn-next-card" class="mt-4 bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 px-6 rounded-lg transition-colors float-right">Next <i class="fa-solid fa-arrow-right ml-1"></i></button>
+                        <div class="mt-4 pt-2 float-right mr-4 text-sm text-slate-500 hidden sm:block">Press <kbd class="bg-white border border-slate-200 rounded px-2 py-0.5 font-mono text-xs shadow-sm">Enter</kbd></div>
+                        <div class="clear-both"></div>
+                    </div>
+
                 </div>
-                <div class="mt-6 flex justify-between items-center border-t pt-4">
-                    <p class="text-sm text-gray-500"><kbd class="bg-gray-100 border rounded px-2 py-1 text-xs">Enter</kbd> to submit early.</p>
-                    <div class="text-right">
-                        <span class="text-sm text-gray-500 mr-2">Live Penalty:</span>
-                        <span id="mistake-counter" class="font-mono font-bold text-red-500">0</span>
-                    </div>
-                </div>
-                
-                <!-- NEW VIRTUAL KEYBOARD CONTAINER -->
-                <div id="virtual-keyboard-container" class="mt-6 hidden flex flex-col gap-2 select-none border-t pt-6"></div>
-                
             </div>
         </div>
     </div>
 
     <script>
-        const STORAGE_KEY = 'conveyancing-active-recall-v7';
+        const STORAGE_KEY = 'conveyancing-lms-v8';
+
+        /* 
+           DATA MODEL:
+           level 0: Zone 1 (Unseen, needs Click Game)
+           level 1: Zone 2 (Training - Every other word)
+           level 2: Zone 2 (Training - Missing letters)
+           level 3: Zone 2 (Training - First letters)
+           level 4: Zone 3 (Mastery - Hardcore Blank)
+           level 5: Zone 4 (Vault - Hardcore Blank on intervals)
+        */
+
+        const defaultQuestions = [
+            { q: "What does the legal doctrine of caveat emptor mean?", a: '"Let the buyer beware"—the buyer takes the property in its existing physical state, and the seller has no general duty to disclose physical defects.', id: "q1", level: 0, nextReview: 0, history: [] },
+            { q: "What is the primary common law exception to the rule of caveat emptor regarding property condition?", a: "Deliberate concealment or masking of a physical defect by the seller, which constitutes fraudulent misrepresentation (Gordon v Selico).", id: "q2", level: 0, nextReview: 0, history: [] },
+            { q: "Does a conveyancer inspect the physical property on behalf of the buyer?", a: "No, conveyancers do not visit or inspect the property on site; checking physical condition and boundaries is the client's responsibility.", id: "q3", level: 0, nextReview: 0, history: [] },
+            { q: "When must a conveyancer explicitly advise a buyer client to re-inspect a property before exchange?", a: "Whenever search results, survey reports, seller replies, or valuation reports reveal matters that create doubt or concern.", id: "q4", level: 0, nextReview: 0, history: [] },
+            { q: "What is the primary purpose of a mortgage valuation report?", a: "It assesses the property purely as financial security for the mortgage lender, not its physical condition for the buyer.", id: "q5", level: 0, nextReview: 0, history: [] }
+        ];
 
         let questions = [];
+        
+        // Session State
         let currentBatch = [];
         let batchIndex = 0;
         let currentQuestion = null;
+        let activeZone = null;
+        
+        // Typing State
         let mistakesMade = 0;
         let lastTypedLength = 0;
-        let waitingForNext = false;
-        let lastQuestionId = null;
-        let currentActiveMode = 'full_text';
-        let failedGuessesByPosition = {}; // NEW: Track failed guesses per position
+        let failedGuessesByPosition = {};
         
-        // Timer State
+        // Click Game State
+        let clickGameWords = [];
+        let clickGameTargetWords = [];
+        let clickGameCurrentIndex = 0;
+
+        // Timers
         let questionStartTime = 0;
         let idleTimer = null;
+        let updateTimerInterval = null;
         let keyboardVisible = false;
 
         // DOM Elements
-        const tabInput = document.getElementById('tab-input');
-        const tabTest = document.getElementById('tab-test');
-        const viewInput = document.getElementById('view-input');
-        const viewTestConfig = document.getElementById('view-test-config');
-        const viewTestActive = document.getElementById('view-test-active');
-        const cardsList = document.getElementById('cards-list');
-        const addForm = document.getElementById('add-form');
-        const btnStartTest = document.getElementById('btn-start-test');
-        const btnEndTest = document.getElementById('btn-end-test');
-        const batchSizeSelect = document.getElementById('batch-size');
-        const difficultySelect = document.getElementById('difficulty-mode');
-        const testQuestionEl = document.getElementById('test-question');
-        const hintDisplayEl = document.getElementById('hint-display');
-        const styledDisplayEl = document.getElementById('styled-display');
-        const textareaEl = document.getElementById('answer-textarea');
-        const testProgressEl = document.getElementById('test-progress');
-        const mistakeCounterEl = document.getElementById('mistake-counter');
+        const viewDash = document.getElementById('view-dash');
+        const viewKb = document.getElementById('view-kb');
+        const viewStudy = document.getElementById('view-study');
+        const tabDash = document.getElementById('tab-dash');
+        const tabKb = document.getElementById('tab-kb');
+        
+        const countZ1 = document.getElementById('count-z1');
+        const countZ2 = document.getElementById('count-z2');
+        const countZ3 = document.getElementById('count-z3');
+        const countZ4 = document.getElementById('count-z4');
+        
+        // Study DOM
+        const studyQuestionEl = document.getElementById('study-question');
+        const zoneBadge = document.getElementById('zone-badge');
+        const studyProgressEl = document.getElementById('study-progress');
         const feedbackDisplay = document.getElementById('feedback-display');
         const feedbackTitle = document.getElementById('feedback-title');
         const feedbackCorrectAnswer = document.getElementById('feedback-correct-answer');
-        const activeModeBadge = document.getElementById('active-mode-badge');
-        
-        // Import/Export/Keyboard Elements
-        const btnDownload = document.getElementById('download-file');
-        const inputUpload = document.getElementById('upload-file');
-        const btnClearData = document.getElementById('clear-data');
+        const btnNextCard = document.getElementById('btn-next-card');
+
+        // Read Phase DOM
+        const interfaceRead = document.getElementById('interface-read');
+        const readAnswerText = document.getElementById('read-answer-text');
+        const btnStartClickGame = document.getElementById('btn-start-click-game');
+
+        // Click Game DOM
+        const interfaceClick = document.getElementById('interface-click');
+        const assembledArea = document.getElementById('assembled-area');
+        const wordBank = document.getElementById('word-bank');
+
+        // Typing Game DOM
+        const interfaceType = document.getElementById('interface-type');
+        const hintDisplayEl = document.getElementById('hint-display');
+        const styledDisplayEl = document.getElementById('styled-display');
+        const textareaEl = document.getElementById('answer-textarea');
+        const mistakeCounterEl = document.getElementById('mistake-counter');
+        const timerDisplay = document.getElementById('timer-display');
         const btnToggleKeyboard = document.getElementById('btn-toggle-keyboard');
         const keyboardContainer = document.getElementById('virtual-keyboard-container');
 
+        // Import/Export/KB DOM
+        const addForm = document.getElementById('add-form');
+        const btnDownload = document.getElementById('download-file');
+        const inputUpload = document.getElementById('upload-file');
+        const btnClearData = document.getElementById('clear-data');
+
+        // Init
         function init() {
             const stored = localStorage.getItem(STORAGE_KEY);
             if (stored) {
                 questions = JSON.parse(stored);
+                // migration for older saves
+                questions.forEach(q => { if(q.level === undefined) q.level = 0; if(q.nextReview === undefined) q.nextReview = 0; });
             } else {
-                questions = [];
+                questions = [...defaultQuestions];
             }
+            saveData();
+            updateDashboard();
             renderCards();
             renderKeyboard();
         }
 
         function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(questions)); }
 
-        // --- KEYBOARD RENDERING & LOGIC ---
-        function renderKeyboard() {
-            const layout = [
-                ['q','w','e','r','t','y','u','i','o','p'],
-                ['a','s','d','f','g','h','j','k','l'],
-                ['z','x','c','v','b','n','m'],
-                [' ', '-', '\'', '"']
-            ];
-            keyboardContainer.innerHTML = '';
-            layout.forEach(row => {
-                const rowEl = document.createElement('div');
-                rowEl.className = 'flex justify-center gap-1 sm:gap-2';
-                row.forEach(key => {
-                    const keyEl = document.createElement('button');
-                    keyEl.className = 'vk-key px-2 py-3 sm:px-4 sm:py-3 bg-white border border-gray-300 rounded shadow-sm text-gray-700 font-bold uppercase transition-all flex-1 max-w-[2.5rem] sm:max-w-[3.5rem] text-center text-sm sm:text-base';
-                    if (key === ' ') {
-                        keyEl.classList.replace('max-w-[2.5rem]', 'max-w-[8rem]');
-                        keyEl.classList.replace('sm:max-w-[3.5rem]', 'sm:max-w-[10rem]');
-                        keyEl.textContent = 'SPACE';
-                    } else {
-                        keyEl.textContent = key;
-                    }
-                    keyEl.dataset.key = key;
-                    
-                    // Stop the button from taking away text focus
-                    keyEl.addEventListener('mousedown', (e) => e.preventDefault()); 
-                    
-                    // Add char to textarea when clicked
-                    keyEl.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        if (textareaEl.disabled) return;
-                        textareaEl.value += key;
-                        textareaEl.dispatchEvent(new Event('input')); // trigger logic
-                        textareaEl.focus();
-                    });
-                    rowEl.appendChild(keyEl);
-                });
-                keyboardContainer.appendChild(rowEl);
-            });
+        // --- NAVIGATION ---
+        tabDash.addEventListener('click', () => { switchView('dash'); updateDashboard(); });
+        tabKb.addEventListener('click', () => { switchView('kb'); renderCards(); });
+
+        function switchView(view) {
+            viewDash.classList.add('hidden'); viewKb.classList.add('hidden'); viewStudy.classList.add('hidden');
+            tabDash.className = 'px-4 py-2 rounded-md text-slate-500 hover:bg-slate-50 font-medium transition-colors';
+            tabKb.className = 'px-4 py-2 rounded-md text-slate-500 hover:bg-slate-50 font-medium transition-colors';
+            
+            if(view === 'dash') { viewDash.classList.remove('hidden'); tabDash.classList.add('bg-indigo-50', 'text-indigo-700', 'font-bold'); tabDash.classList.remove('text-slate-500', 'hover:bg-slate-50'); }
+            else if(view === 'kb') { viewKb.classList.remove('hidden'); tabKb.classList.add('bg-indigo-50', 'text-indigo-700', 'font-bold'); tabKb.classList.remove('text-slate-500', 'hover:bg-slate-50'); }
+            else if(view === 'study') { viewStudy.classList.remove('hidden'); }
         }
 
-        btnToggleKeyboard.addEventListener('click', () => {
-            keyboardVisible = !keyboardVisible;
-            if (keyboardVisible) {
-                keyboardContainer.classList.remove('hidden');
-                btnToggleKeyboard.classList.add('text-blue-600', 'bg-blue-50');
-                resetIdleTimer(); // start tracking idle time if open
-            } else {
-                keyboardContainer.classList.add('hidden');
-                btnToggleKeyboard.classList.remove('text-blue-600', 'bg-blue-50');
-                clearTimeout(idleTimer);
+        function updateDashboard() {
+            const now = Date.now();
+            let z1 = 0, z2 = 0, z3 = 0, z4 = 0;
+            questions.forEach(q => {
+                if (q.level === 0) z1++;
+                else if (q.level >= 1 && q.level <= 3) z2++;
+                else if (q.level === 4) z3++;
+                else if (q.level === 5 && q.nextReview <= now) z4++;
+            });
+            countZ1.textContent = z1; countZ2.textContent = z2; countZ3.textContent = z3; countZ4.textContent = z4;
+        }
+
+        // --- SESSION LOGIC ---
+        window.startSession = function(zone) {
+            activeZone = zone;
+            const now = Date.now();
+            let pool = [];
+            if (zone === 'z1') pool = questions.filter(q => q.level === 0);
+            else if (zone === 'z2') pool = questions.filter(q => q.level >= 1 && q.level <= 3);
+            else if (zone === 'z3') pool = questions.filter(q => q.level === 4);
+            else if (zone === 'z4') pool = questions.filter(q => q.level === 5 && q.nextReview <= now);
+
+            if (pool.length === 0) {
+                alert(`No cards available in this zone right now. Check the dashboard!`);
+                return;
             }
-        });
 
-        function clearKeyboardStyles() {
-            document.querySelectorAll('.vk-key').forEach(k => {
-                k.classList.remove('line-through', 'text-red-500', 'bg-red-100', 'border-red-300', 'ring-4', 'ring-yellow-400', 'bg-yellow-100');
-            });
-        }
+            // Shuffle pool and take up to 10
+            pool.sort(() => 0.5 - Math.random());
+            currentBatch = pool.slice(0, 10);
+            batchIndex = 0;
+            
+            switchView('study');
+            loadNextCard();
+        };
 
-        function normalizeChar(c) {
-            if (!c) return c;
-            let t = c.toLowerCase();
-            if (t === '—' || t === '–') return '-';
-            if (t === '‘' || t === '’' || t === '“' || t === '”') return "'";
-            return t;
-        }
+        window.endSession = function() {
+            cleanUpCard();
+            switchView('dash');
+            updateDashboard();
+        };
 
-        function resetIdleTimer() {
+        function cleanUpCard() {
+            clearInterval(updateTimerInterval);
             clearTimeout(idleTimer);
-            if (textareaEl.disabled || !keyboardVisible) return;
-            // 10 seconds of inactivity triggers a hint for testing
-            idleTimer = setTimeout(() => {
-                showKeyboardHint();
-            }, 10000);
+            textareaEl.disabled = true;
         }
 
-        function showKeyboardHint() {
-            if (!currentQuestion) return;
-            const typed = textareaEl.value, target = currentQuestion.a;
-            if (typed.length >= target.length) return;
-            
-            const nextChar = normalizeChar(target[typed.length]);
-            const allKeys = Array.from(document.querySelectorAll('.vk-key'));
-            
-            // Clear existing highlights
-            allKeys.forEach(k => k.classList.remove('ring-4', 'ring-yellow-400', 'bg-yellow-100'));
-            
-            let highlightKeys = [];
-            const nextKeyEl = allKeys.find(k => k.dataset.key === nextChar);
-            if (nextKeyEl) highlightKeys.push(nextKeyEl);
-            
-            // Get 4 other random valid keys
-            const otherKeys = allKeys.filter(k => k.dataset.key !== nextChar && /[a-z \-'\"]/.test(k.dataset.key));
-            otherKeys.sort(() => 0.5 - Math.random());
-            
-            highlightKeys = highlightKeys.concat(otherKeys.slice(0, 5 - highlightKeys.length));
-            
-            // Highlight them all
-            highlightKeys.forEach(k => k.classList.add('ring-4', 'ring-yellow-400', 'bg-yellow-100'));
-        }
-        // ----------------------------------
-
-        // --- IMPORT / EXPORT / CLEAR LOGIC ---
-        btnDownload.addEventListener('click', () => {
-            if (questions.length === 0) {
-                alert("You have no data to download yet. Add questions or upload a save file first.");
-                return;
-            }
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(questions, null, 2));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            const dateStr = new Date().toISOString().split('T')[0];
-            downloadAnchorNode.setAttribute("download", `study-progress-${dateStr}.json`);
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
-        });
-
-        inputUpload.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    const imported = JSON.parse(evt.target.result);
-                    if (Array.isArray(imported) && imported.length > 0 && imported[0].hasOwnProperty('q') && imported[0].hasOwnProperty('a')) {
-                        questions = imported;
-                        saveData();
-                        renderCards();
-                        alert("Progress loaded successfully!");
-                    } else {
-                        alert("Invalid save file format. Make sure it's a JSON file exported from this app.");
-                    }
-                } catch (err) {
-                    alert("Error parsing the file.");
-                }
-                e.target.value = ''; 
-            };
-            reader.readAsText(file);
-        });
-
-        btnClearData.addEventListener('click', () => {
-            if(confirm("Are you sure you want to clear all data from this browser? Ensure you have downloaded your progress first!")) {
-                localStorage.removeItem(STORAGE_KEY);
-                questions = [];
-                renderCards();
-            }
-        });
-        // -----------------------------
-
-        tabInput.addEventListener('click', () => { switchView('input'); renderCards(); });
-        tabTest.addEventListener('click', () => { switchView('test-config'); });
-
-        function switchView(viewName) {
-            viewInput.classList.add('hidden'); viewTestConfig.classList.add('hidden'); viewTestActive.classList.add('hidden');
-            tabInput.className = 'px-4 py-2 rounded-md text-gray-600 hover:bg-gray-50 font-medium transition-colors';
-            tabTest.className = 'px-4 py-2 rounded-md text-gray-600 hover:bg-gray-50 font-medium transition-colors';
-            if(viewName === 'input') { viewInput.classList.remove('hidden'); tabInput.classList.add('bg-blue-100', 'text-blue-700'); tabInput.classList.remove('hover:bg-gray-50', 'text-gray-600'); }
-            else if(viewName === 'test-config') { viewTestConfig.classList.remove('hidden'); tabTest.classList.add('bg-blue-100', 'text-blue-700'); tabTest.classList.remove('hover:bg-gray-50', 'text-gray-600'); }
-            else if(viewName === 'test-active') { viewTestActive.classList.remove('hidden'); tabTest.classList.add('bg-blue-100', 'text-blue-700'); tabTest.classList.remove('hover:bg-gray-50', 'text-gray-600'); }
-        }
-
-        addForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const q = document.getElementById('new-q').value.trim();
-            const a = document.getElementById('new-a').value.trim();
-            if(q && a) {
-                questions.unshift({ q, a, id: crypto.randomUUID(), history: [] });
-                saveData(); document.getElementById('new-q').value = ''; document.getElementById('new-a').value = ''; renderCards();
-            }
-        });
-
-        function getShapeHTML(mode, colorClass) {
-            const baseClass = `inline-block w-2.5 h-2.5 mr-0.5 ${colorClass}`;
-            if (mode === 'missing_letters') return `<div class="${baseClass} rounded-full" title="Missing Letters"></div>`;
-            if (mode === 'first_letters') return `<div class="${baseClass} rounded-full" style="border-radius: 2px;" title="First Letters"></div>`;
-            if (mode === 'every_other_word') return `<div class="${baseClass}" title="Every Other Word"></div>`; 
-            if (mode === 'full_text') return `<div class="inline-block mr-0.5 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[10px] ${colorClass.replace('bg-', 'border-b-')}" title="Full Text"></div>`; 
-            if (mode === 'hardcore') return `<i class="fa-solid fa-star text-[10px] mr-0.5 ${colorClass.replace('bg-', 'text-')}" title="Hardcore"></i>`;
-            return `<div class="${baseClass} rounded-full"></div>`;
-        }
-
-        function renderCards() {
-            cardsList.innerHTML = '';
-            if (questions.length === 0) {
-                cardsList.innerHTML = '<div class="text-center p-8 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-300">No cards loaded. Please upload a save file above, or add a new card to start building your deck.</div>';
+        function loadNextCard() {
+            if (batchIndex >= currentBatch.length) {
+                endSession();
                 return;
             }
 
-            questions.forEach((item) => {
-                const card = document.createElement('div');
-                card.className = 'bg-white border border-gray-200 rounded-lg p-4 shadow-sm';
-                let historyHTML = '';
-                if(item.history && item.history.length > 0) {
-                    historyHTML = '<div class="mt-3 flex flex-wrap items-center"><span class="text-xs text-gray-500 mr-2 uppercase tracking-wide">History:</span>';
-                    item.history.slice(-30).forEach(h => {
-                        let colorClass = h.score >= 90 ? 'bg-green-500' : (h.score >= 50 ? 'bg-orange-400' : 'bg-red-500');
-                        historyHTML += getShapeHTML(h.mode || 'missing_letters', colorClass);
-                    });
-                    historyHTML += '</div>';
+            cleanUpCard();
+            currentQuestion = currentBatch[batchIndex];
+            studyQuestionEl.textContent = currentQuestion.q;
+            studyProgressEl.textContent = `${batchIndex + 1}/${currentBatch.length}`;
+            feedbackDisplay.classList.add('hidden');
+            
+            // Set Zone Badge visually
+            zoneBadge.className = 'absolute top-0 right-0 text-xs font-bold px-4 py-1.5 rounded-bl-xl border-b border-l ';
+            if(currentQuestion.level === 0) { zoneBadge.classList.add('bg-slate-100', 'text-slate-600', 'border-slate-200'); zoneBadge.innerHTML = '<i class="fa-solid fa-book-open mr-1"></i> Zone 1'; }
+            else if(currentQuestion.level <= 3) { zoneBadge.classList.add('bg-blue-100', 'text-blue-700', 'border-blue-200'); zoneBadge.innerHTML = '<i class="fa-solid fa-dumbbell mr-1"></i> Zone 2'; }
+            else if(currentQuestion.level === 4) { zoneBadge.classList.add('bg-orange-100', 'text-orange-700', 'border-orange-200'); zoneBadge.innerHTML = '<i class="fa-solid fa-fire mr-1"></i> Zone 3'; }
+            else { zoneBadge.classList.add('bg-emerald-100', 'text-emerald-700', 'border-emerald-200'); zoneBadge.innerHTML = '<i class="fa-solid fa-vault mr-1"></i> Zone 4 (Review)'; }
+
+            if (currentQuestion.level === 0) {
+                setupReadPhase(currentQuestion.a);
+            } else {
+                setupTypingGame(currentQuestion);
+            }
+            
+            questionStartTime = Date.now();
+            updateTimerInterval = setInterval(() => {
+                const s = (Date.now() - questionStartTime) / 1000;
+                timerDisplay.innerHTML = `<i class="fa-regular fa-clock mr-1.5"></i> ${s.toFixed(1)}s`;
+            }, 100);
+        }
+
+        btnNextCard.addEventListener('click', () => {
+            batchIndex++;
+            loadNextCard();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                if (!feedbackDisplay.classList.contains('hidden')) {
+                    e.preventDefault();
+                    btnNextCard.click();
+                } else if (!interfaceRead.classList.contains('hidden')) {
+                    e.preventDefault();
+                    btnStartClickGame.click();
                 }
-                card.innerHTML = `
-                    <div class="flex justify-between items-start">
-                        <div class="w-full">
-                            <p class="font-bold text-gray-800 mb-1">${item.q}</p>
-                            <p class="text-gray-600 text-sm italic font-serif">"${item.a}"</p>
-                            ${historyHTML}
-                        </div>
-                        <button class="text-red-400 hover:text-red-600 ml-4 p-1" onclick="deleteCard('${item.id}')"><i class="fa-solid fa-trash"></i></button>
-                    </div>`;
-                cardsList.appendChild(card);
+            }
+        });
+
+        // ==========================================
+        // INTERFACE 0: READING PHASE (ZONE 1)
+        // ==========================================
+        function setupReadPhase(answer) {
+            interfaceRead.classList.remove('hidden');
+            interfaceClick.classList.add('hidden');
+            interfaceType.classList.add('hidden');
+            readAnswerText.textContent = answer;
+        }
+
+        btnStartClickGame.addEventListener('click', () => {
+            setupClickGame(currentQuestion.a);
+        });
+
+        // ==========================================
+        // INTERFACE A: CLICK GAME LOGIC (ZONE 1)
+        // ==========================================
+        function setupClickGame(answer) {
+            interfaceRead.classList.add('hidden');
+            interfaceClick.classList.remove('hidden');
+            interfaceType.classList.add('hidden');
+            
+            // Split answer into words, keeping punctuation attached for simplicity in recognition
+            clickGameTargetWords = answer.split(' ').filter(w => w.trim().length > 0);
+            clickGameWords = [...clickGameTargetWords];
+            clickGameWords.sort(() => 0.5 - Math.random()); // Shuffle
+            clickGameCurrentIndex = 0;
+
+            assembledArea.innerHTML = '';
+            wordBank.innerHTML = '';
+
+            clickGameWords.forEach((word, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'word-btn bg-white border-2 border-slate-200 hover:border-indigo-400 text-slate-700 font-medium px-4 py-2 rounded-lg shadow-sm';
+                btn.textContent = word;
+                btn.dataset.word = word;
+                btn.onclick = () => handleWordClick(btn, word);
+                wordBank.appendChild(btn);
             });
         }
-        window.deleteCard = function(id) { questions = questions.filter(q => q.id !== id); saveData(); renderCards(); }
 
-        // Core App Logic
-        function isCharMatch(typed, target) {
-            if (!typed || !target) return false;
-            let t = typed.toLowerCase(), c = target.toLowerCase();
-            if (t === c) return true;
-            if (t === '-' && (c === '—' || c === '–' || c === '-')) return true;
-            if ((t === "'" || t === '"') && (c === '‘' || c === '’' || c === '“' || c === '”' || c === '"' || c === "'")) return true;
-            return false;
+        function handleWordClick(btn, word) {
+            const targetWord = clickGameTargetWords[clickGameCurrentIndex];
+            if (word === targetWord) {
+                // Correct!
+                btn.remove();
+                const assembledSpan = document.createElement('span');
+                assembledSpan.className = 'bg-indigo-100 text-indigo-900 px-3 py-1.5 rounded border border-indigo-200 font-medium shadow-sm';
+                assembledSpan.textContent = word;
+                assembledArea.appendChild(assembledSpan);
+                clickGameCurrentIndex++;
+
+                if (clickGameCurrentIndex === clickGameTargetWords.length) {
+                    // Won the game
+                    processClickGameWin();
+                }
+            } else {
+                // Wrong
+                btn.classList.add('shake-err', 'border-red-400', 'text-red-600', 'bg-red-50');
+                setTimeout(() => { btn.classList.remove('shake-err', 'border-red-400', 'text-red-600', 'bg-red-50'); }, 400);
+            }
         }
 
-        function getQuestionStatus(q) {
-            if (!q.history || q.history.length === 0) return 'unseen';
-            const last = q.history[q.history.length - 1];
-            if (last.mode === 'hardcore' && last.score >= 90) return 'mastered';
-            return 'learning';
+        function processClickGameWin() {
+            clearInterval(updateTimerInterval);
+            const timeTaken = (Date.now() - questionStartTime) / 1000;
+            
+            // Level up to Zone 2!
+            const qIndex = questions.findIndex(q => q.id === currentQuestion.id);
+            if (qIndex > -1) {
+                questions[qIndex].level = 1;
+                if(!questions[qIndex].history) questions[qIndex].history = [];
+                questions[qIndex].history.push({ score: 100, mode: 'click_game', date: new Date().toISOString() });
+                saveData();
+            }
+
+            feedbackDisplay.classList.remove('hidden', 'border-red-500', 'bg-red-50', 'border-orange-500', 'bg-orange-50', 'border-emerald-500', 'bg-emerald-50');
+            feedbackDisplay.classList.add('border-emerald-500', 'bg-emerald-50');
+            feedbackTitle.className = 'font-black text-lg mb-2 flex items-center text-emerald-700';
+            feedbackTitle.innerHTML = `<i class="fa-solid fa-arrow-up-right-dots mr-2"></i> Encoded Successfully! <span class="text-sm font-normal ml-3 inline-block bg-white/50 px-2 py-0.5 rounded shadow-sm border border-emerald-200 text-emerald-800">Time: ${timeTaken.toFixed(1)}s</span>`;
+            feedbackCorrectAnswer.textContent = currentQuestion.a;
         }
 
-        function generateHint(answer, mode) {
-            if (mode === 'full_text') return answer;
+        // ==========================================
+        // INTERFACE B: TYPING GAME LOGIC (ZONES 2,3,4)
+        // ==========================================
+        function setupTypingGame(q) {
+            interfaceRead.classList.add('hidden');
+            interfaceClick.classList.add('hidden');
+            interfaceType.classList.remove('hidden');
+            
+            const modes = ['click', 'every_other_word', 'missing_letters', 'first_letters', 'hardcore', 'hardcore'];
+            currentActiveMode = modes[q.level];
+
+            hintDisplayEl.textContent = generateTypingHint(q.a, currentActiveMode);
+            textareaEl.value = ''; styledDisplayEl.innerHTML = '';
+            mistakesMade = 0; lastTypedLength = 0; failedGuessesByPosition = {};
+            mistakeCounterEl.textContent = '0';
+            textareaEl.disabled = false;
+            textareaEl.style.height = 'auto'; 
+            textareaEl.focus();
+            
+            clearKeyboardStyles();
+            resetIdleTimer();
+        }
+
+        function generateTypingHint(answer, mode) {
             if (mode === 'hardcore') return answer.replace(/[a-zA-Z0-9]/g, '_');
             let words = answer.split(' ');
             
@@ -484,101 +598,16 @@
             return answer;
         }
 
-        function getModeDisplayName(mode) {
-            const map = {
-                'full_text': 'Auto: Full Text (Learning)',
-                'every_other_word': 'Auto: Every Other Word',
-                'missing_letters': 'Auto: Missing Letters',
-                'first_letters': 'Auto: First Letters Only',
-                'hardcore': 'Auto: Hardcore (Blank)'
-            };
-            return map[mode] || mode;
+        function normalizeChar(c) {
+            if (!c) return c;
+            let t = c.toLowerCase();
+            if (t === '—' || t === '–') return '-';
+            if (t === '‘' || t === '’' || t === '“' || t === '”') return "'";
+            return t;
         }
-
-        function fillBatch(targetSize) {
-            currentBatch = currentBatch.filter(q => getQuestionStatus(q) !== 'mastered');
-            while (currentBatch.length < targetSize) {
-                let pool = questions.filter(q => !currentBatch.find(cb => cb.id === q.id) && getQuestionStatus(q) !== 'mastered');
-                if (pool.length === 0) {
-                    pool = questions.filter(q => !currentBatch.find(cb => cb.id === q.id));
-                    if (pool.length === 0) break;
-                }
-                pool.sort((a, b) => (a.history ? a.history.length : 0) - (b.history ? b.history.length : 0));
-                currentBatch.push(pool[0]);
-            }
-        }
-
-        btnStartTest.addEventListener('click', () => {
-            if (questions.length === 0) return alert("Please add questions or upload a save file first!");
-            let size = batchSizeSelect.value === 'all' ? questions.length : parseInt(batchSizeSelect.value, 10);
-            currentBatch = [];
-            fillBatch(Math.min(size, questions.length));
-            batchIndex = 0;
-            switchView('test-active');
-            loadQuestion();
-        });
-        
-        btnEndTest.addEventListener('click', () => {
-            clearTimeout(idleTimer);
-            switchView('test-config');
-        });
-        
-        difficultySelect.addEventListener('change', () => { if(currentQuestion && !waitingForNext) loadQuestion(); });
-
-        function loadQuestion() {
-            if (currentBatch.length === 0) return;
-            
-            let size = batchSizeSelect.value === 'all' ? questions.length : parseInt(batchSizeSelect.value, 10);
-            fillBatch(Math.min(size, questions.length));
-
-            const masteredPool = questions.filter(q => getQuestionStatus(q) === 'mastered' && q.id !== lastQuestionId);
-            let isReview = false;
-            
-            if (masteredPool.length > 0 && Math.random() < 0.20) {
-                currentQuestion = masteredPool[Math.floor(Math.random() * masteredPool.length)];
-                isReview = true;
-            } else {
-                if (currentBatch.length > 1 && currentBatch[batchIndex % currentBatch.length].id === lastQuestionId) batchIndex++;
-                currentQuestion = currentBatch[batchIndex % currentBatch.length];
-                batchIndex++;
-            }
-            lastQuestionId = currentQuestion.id;
-            
-            testQuestionEl.textContent = currentQuestion.q;
-            testProgressEl.innerHTML = isReview ? `<span class="text-purple-600 font-bold"><i class="fa-solid fa-rotate-left"></i> Reviewing Mastered</span>` : `Active Pool (${currentBatch.length})`;
-
-            let selectedMode = difficultySelect.value;
-            if (selectedMode === 'auto') {
-                if (!currentQuestion.history || currentQuestion.history.length === 0) {
-                    selectedMode = 'full_text'; 
-                } else {
-                    const lastScore = currentQuestion.history[currentQuestion.history.length - 1].score;
-                    const lastMode = currentQuestion.history[currentQuestion.history.length - 1].mode;
-                    const progression = ['full_text', 'every_other_word', 'missing_letters', 'first_letters', 'hardcore'];
-                    let modeIndex = Math.max(0, progression.indexOf(lastMode));
-                    
-                    if (lastScore >= 90) modeIndex = Math.min(progression.length - 1, modeIndex + 1);
-                    else if (lastScore < 50) modeIndex = 0;
-                    else modeIndex = Math.max(0, modeIndex - 1);
-                    
-                    selectedMode = progression[modeIndex];
-                }
-                activeModeBadge.classList.remove('hidden');
-                activeModeBadge.textContent = getModeDisplayName(selectedMode);
-            } else activeModeBadge.classList.add('hidden');
-            
-            currentActiveMode = selectedMode;
-            hintDisplayEl.textContent = generateHint(currentQuestion.a, currentActiveMode);
-            
-            textareaEl.value = ''; styledDisplayEl.innerHTML = '';
-            mistakesMade = 0; lastTypedLength = 0; mistakeCounterEl.textContent = '0';
-            feedbackDisplay.classList.add('hidden'); textareaEl.disabled = false; waitingForNext = false;
-            textareaEl.style.height = 'auto'; textareaEl.focus();
-            
-            questionStartTime = Date.now();
-            failedGuessesByPosition = {}; // NEW: Reset failed guesses for new question
-            clearKeyboardStyles();
-            resetIdleTimer();
+        function isCharMatch(typed, target) {
+            if (!typed || !target) return false;
+            return normalizeChar(typed) === normalizeChar(target);
         }
 
         textareaEl.addEventListener('input', (e) => {
@@ -589,11 +618,8 @@
                 const targetChar = target[typed.length - 1];
                 let isError = false;
                 
-                if (typed.length <= target.length) {
-                    if (!isCharMatch(newChar, targetChar)) isError = true;
-                } else {
-                    isError = true;
-                }
+                if (typed.length <= target.length) { if (!isCharMatch(newChar, targetChar)) isError = true; } 
+                else { isError = true; }
                 
                 if (isError) {
                     mistakesMade++;
@@ -605,78 +631,250 @@
             }
             lastTypedLength = typed.length;
             
-            // Determine active position (first error, or end of typed string)
             let activePos = typed.length;
             for (let i = 0; i < typed.length; i++) {
-                if (i >= target.length || !isCharMatch(typed[i], target[i])) {
-                    activePos = i;
-                    break;
-                }
+                if (i >= target.length || !isCharMatch(typed[i], target[i])) { activePos = i; break; }
             }
 
             clearKeyboardStyles(); 
             resetIdleTimer(); 
             
-            // Apply strike-outs for the active position
             if (keyboardVisible && failedGuessesByPosition[activePos]) {
                 const keys = Array.from(document.querySelectorAll('.vk-key'));
                 failedGuessesByPosition[activePos].forEach(char => {
                     const badKey = keys.find(k => k.dataset.key === char);
-                    if (badKey) badKey.classList.add('line-through', 'text-red-500', 'bg-red-100', 'border-red-300');
+                    if (badKey) badKey.classList.add('line-through', 'text-red-400', 'bg-red-50', 'border-red-200');
                 });
             }
             
             let html = '';
             for (let i = 0; i < typed.length; i++) {
-                if (i >= target.length || !isCharMatch(typed[i], target[i])) html += `<span class="text-red-500 bg-red-100">${escapeHTML(typed[i])}</span>`;
-                else html += `<span class="text-gray-900">${escapeHTML(target[i])}</span>`;
+                if (i >= target.length || !isCharMatch(typed[i], target[i])) html += `<span class="text-red-500 bg-red-100 rounded-sm">${escapeHTML(typed[i])}</span>`;
+                else html += `<span class="text-slate-900">${escapeHTML(target[i])}</span>`;
             }
             if (typed.length < target.length) html += `<span class="text-transparent">${escapeHTML(target.substring(typed.length))}</span>`;
             
             styledDisplayEl.innerHTML = html;
             textareaEl.style.height = styledDisplayEl.offsetHeight + 'px';
-            if (typed.length === target.length) setTimeout(() => { if (!waitingForNext) submitAnswer(); }, 150);
+            
+            if (typed.length === target.length) setTimeout(() => { processTypingWin(); }, 150);
         });
 
         textareaEl.addEventListener('keydown', (e) => { 
             if (e.key === 'Enter') { 
                 e.preventDefault(); 
-                if (!waitingForNext) submitAnswer(); 
+                e.stopPropagation(); // Prevents global Enter from instantly skipping feedback
+                processTypingWin(); 
             } 
         });
 
-        function submitAnswer() {
-            if (waitingForNext) return;
-            waitingForNext = true; 
-            textareaEl.disabled = true;
-            clearTimeout(idleTimer);
+        function processTypingWin() {
+            if (textareaEl.disabled) return;
+            cleanUpCard();
 
             const typed = textareaEl.value, target = currentQuestion.a;
             let totalErrors = mistakesMade + Math.max(0, target.length - typed.length);
             let score = Math.max(0, Math.min(100, 100 - Math.round((totalErrors / target.length) * 100)));
-            
             const timeTaken = (Date.now() - questionStartTime) / 1000;
             const cpm = Math.round((typed.length / (timeTaken || 1)) * 60);
 
+            // Progression Logic
             const qIndex = questions.findIndex(q => q.id === currentQuestion.id);
-            if (qIndex > -1) {
-                if (!questions[qIndex].history) questions[qIndex].history = [];
-                questions[qIndex].history.push({ score: score, speed: timeTaken, mode: currentActiveMode, date: new Date().toISOString() });
-                saveData();
+            let feedbackMsg = "", feedbackColor = "";
+            let oldLevel = questions[qIndex].level;
+            let newLevel = oldLevel;
+
+            if (score >= 95) {
+                if (oldLevel < 5) newLevel = oldLevel + 1;
+                
+                if (newLevel === 5) {
+                    // Set next review to +24 hours
+                    questions[qIndex].nextReview = Date.now() + (24 * 60 * 60 * 1000); 
+                    feedbackMsg = '<i class="fa-solid fa-lock mr-2"></i> Vaulted!';
+                    feedbackColor = 'emerald';
+                } else {
+                    feedbackMsg = '<i class="fa-solid fa-arrow-up mr-2"></i> Leveled Up!';
+                    feedbackColor = 'blue';
+                }
+            } else if (score >= 70) {
+                feedbackMsg = '<i class="fa-solid fa-minus mr-2"></i> Good, but needs practice.';
+                feedbackColor = 'orange';
+            } else {
+                newLevel = Math.max(1, oldLevel - 1); // Drop a level, but not back to click game
+                feedbackMsg = '<i class="fa-solid fa-arrow-down mr-2"></i> Dropped a level.';
+                feedbackColor = 'red';
             }
 
-            feedbackDisplay.classList.remove('hidden', 'border-red-500', 'bg-red-50', 'border-orange-500', 'bg-orange-50', 'border-green-500', 'bg-green-50');
-            feedbackTitle.classList.remove('text-red-700', 'text-orange-700', 'text-green-700');
+            questions[qIndex].level = newLevel;
+            if (!questions[qIndex].history) questions[qIndex].history = [];
+            questions[qIndex].history.push({ score, speed: timeTaken, cpm, mode: currentActiveMode, date: new Date().toISOString() });
+            saveData();
+
+            feedbackDisplay.classList.remove('hidden', 'border-red-500', 'bg-red-50', 'border-orange-500', 'bg-orange-50', 'border-emerald-500', 'bg-emerald-50', 'border-blue-500', 'bg-blue-50');
+            feedbackTitle.className = `font-black text-lg mb-2 flex items-center text-${feedbackColor}-700`;
+            feedbackDisplay.classList.add(`border-${feedbackColor}-500`, `bg-${feedbackColor}-50`);
             
-            const speedText = `<span class="text-sm font-normal ml-3 inline-block bg-white/50 px-2 py-0.5 rounded shadow-sm border border-black/5">Speed: ${timeTaken.toFixed(1)}s (${cpm} CPM)</span>`;
-            
-            if (score >= 90) { feedbackDisplay.classList.add('border-green-500', 'bg-green-50'); feedbackTitle.classList.add('text-green-700'); feedbackTitle.innerHTML = `Excellent! Accuracy: ${score}% ${speedText}`; }
-            else if (score >= 50) { feedbackDisplay.classList.add('border-orange-500', 'bg-orange-50'); feedbackTitle.classList.add('text-orange-700'); feedbackTitle.innerHTML = `Good try. Accuracy: ${score}% ${speedText}`; }
-            else { feedbackDisplay.classList.add('border-red-500', 'bg-red-50'); feedbackTitle.classList.add('text-red-700'); feedbackTitle.innerHTML = `Needs review. Accuracy: ${score}% ${speedText}`; }
-            
+            const speedText = `<span class="text-sm font-normal ml-3 inline-block bg-white/60 px-2 py-0.5 rounded shadow-sm border border-black/5 text-slate-700">Accuracy: ${score}% | Speed: ${timeTaken.toFixed(1)}s (${cpm} CPM)</span>`;
+            feedbackTitle.innerHTML = `${feedbackMsg} ${speedText}`;
             feedbackCorrectAnswer.textContent = target;
-            setTimeout(() => { loadQuestion(); }, score >= 90 ? 1000 : 3500);
         }
+
+        // --- KEYBOARD RENDERING & HINTS ---
+        function renderKeyboard() {
+            const layout = [['q','w','e','r','t','y','u','i','o','p'],['a','s','d','f','g','h','j','k','l'],['z','x','c','v','b','n','m'],[' ', '-', '\'', '"']];
+            keyboardContainer.innerHTML = '';
+            layout.forEach(row => {
+                const rowEl = document.createElement('div');
+                rowEl.className = 'flex justify-center gap-1 sm:gap-1.5';
+                row.forEach(key => {
+                    const keyEl = document.createElement('button');
+                    keyEl.className = 'vk-key px-2 py-2 sm:px-4 sm:py-3 bg-white border border-slate-300 rounded shadow-sm text-slate-700 font-bold uppercase transition-all flex-1 max-w-[2.5rem] sm:max-w-[3.5rem] text-center text-sm sm:text-base';
+                    if (key === ' ') { keyEl.classList.replace('max-w-[2.5rem]', 'max-w-[8rem]'); keyEl.classList.replace('sm:max-w-[3.5rem]', 'sm:max-w-[10rem]'); keyEl.textContent = 'SPACE'; } 
+                    else { keyEl.textContent = key; }
+                    keyEl.dataset.key = key;
+                    keyEl.addEventListener('mousedown', (e) => e.preventDefault()); 
+                    keyEl.addEventListener('click', (e) => {
+                        e.preventDefault(); if (textareaEl.disabled) return;
+                        textareaEl.value += key; textareaEl.dispatchEvent(new Event('input')); textareaEl.focus();
+                    });
+                    rowEl.appendChild(keyEl);
+                });
+                keyboardContainer.appendChild(rowEl);
+            });
+        }
+
+        btnToggleKeyboard.addEventListener('click', () => {
+            keyboardVisible = !keyboardVisible;
+            if (keyboardVisible) {
+                keyboardContainer.classList.remove('hidden');
+                btnToggleKeyboard.classList.add('text-indigo-600', 'bg-indigo-50', 'border-indigo-200');
+                resetIdleTimer();
+            } else {
+                keyboardContainer.classList.add('hidden');
+                btnToggleKeyboard.classList.remove('text-indigo-600', 'bg-indigo-50', 'border-indigo-200');
+                clearTimeout(idleTimer);
+            }
+        });
+
+        function clearKeyboardStyles() {
+            document.querySelectorAll('.vk-key').forEach(k => {
+                k.classList.remove('line-through', 'text-red-400', 'bg-red-50', 'border-red-200', 'ring-4', 'ring-amber-300', 'bg-amber-100');
+            });
+        }
+
+        function resetIdleTimer() {
+            clearTimeout(idleTimer);
+            if (textareaEl.disabled || !keyboardVisible) return;
+            idleTimer = setTimeout(() => { showKeyboardHint(); }, 10000); // 10 seconds for testing
+        }
+
+        function showKeyboardHint() {
+            if (!currentQuestion) return;
+            const typed = textareaEl.value, target = currentQuestion.a;
+            if (typed.length >= target.length) return;
+            const nextChar = normalizeChar(target[typed.length]);
+            const allKeys = Array.from(document.querySelectorAll('.vk-key'));
+            
+            let highlightKeys = [];
+            const nextKeyEl = allKeys.find(k => k.dataset.key === nextChar);
+            if (nextKeyEl) highlightKeys.push(nextKeyEl);
+            
+            const otherKeys = allKeys.filter(k => k.dataset.key !== nextChar && /[a-z \-'\"]/.test(k.dataset.key));
+            otherKeys.sort(() => 0.5 - Math.random());
+            highlightKeys = highlightKeys.concat(otherKeys.slice(0, 5 - highlightKeys.length));
+            
+            highlightKeys.forEach(k => k.classList.add('ring-4', 'ring-amber-300', 'bg-amber-100'));
+    }
+
+    // --- IMPORT / EXPORT / CLEAR LOGIC ---
+    btnDownload.addEventListener('click', () => {
+        if (questions.length === 0) {
+            alert("You have no data to download yet. Add questions or upload a save file first.");
+            return;
+        }
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(questions, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        const dateStr = new Date().toISOString().split('T')[0];
+        downloadAnchorNode.setAttribute("download", `study-progress-${dateStr}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    });
+
+    inputUpload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            try {
+                const imported = JSON.parse(evt.target.result);
+                if (Array.isArray(imported) && imported.length > 0 && imported[0].hasOwnProperty('q') && imported[0].hasOwnProperty('a')) {
+                    questions = imported;
+                    saveData();
+                    renderCards();
+                    updateDashboard();
+                    alert("Progress loaded successfully!");
+                } else {
+                    alert("Invalid save file format. Make sure it's a JSON file exported from this app.");
+                }
+            } catch (err) {
+                alert("Error parsing the file.");
+            }
+            e.target.value = ''; 
+        };
+        reader.readAsText(file);
+    });
+
+    btnClearData.addEventListener('click', () => {
+        if(confirm("Are you sure you want to clear all data from this browser? Ensure you have downloaded your progress first!")) {
+            localStorage.removeItem(STORAGE_KEY);
+            questions = [];
+            renderCards();
+            updateDashboard();
+        }
+    });
+
+    // --- KNOWLEDGE BASE / DECK INVENTORY ---
+    addForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+            const q = document.getElementById('new-q').value.trim(), a = document.getElementById('new-a').value.trim();
+            if(q && a) {
+                questions.unshift({ q, a, id: crypto.randomUUID(), level: 0, nextReview: 0, history: [] });
+                saveData(); document.getElementById('new-q').value = ''; document.getElementById('new-a').value = ''; renderCards(); updateDashboard();
+            }
+        });
+
+        function renderCards() {
+            const cardsList = document.getElementById('cards-list');
+            cardsList.innerHTML = '';
+            if (questions.length === 0) {
+                cardsList.innerHTML = '<div class="text-center p-8 text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">No cards loaded.</div>';
+                return;
+            }
+            questions.forEach((item) => {
+                const card = document.createElement('div');
+                card.className = 'bg-white border border-slate-200 rounded-xl p-4 shadow-sm';
+                let zoneStr = "Zone 1 (Read)"; let zColor = "slate";
+                if(item.level >= 1 && item.level <= 3) { zoneStr = `Zone 2 (Lvl ${item.level})`; zColor = "blue"; }
+                else if(item.level === 4) { zoneStr = "Zone 3 (Mastery)"; zColor = "orange"; }
+                else if(item.level === 5) { zoneStr = "Zone 4 (Vault)"; zColor = "emerald"; }
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div class="w-full">
+                            <div class="flex items-center mb-2">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-${zColor}-700 bg-${zColor}-50 border border-${zColor}-200 px-2 py-0.5 rounded-full">${zoneStr}</span>
+                            </div>
+                            <p class="font-bold text-slate-800 mb-1">${item.q}</p>
+                            <p class="text-slate-600 text-sm italic font-serif">"${item.a}"</p>
+                        </div>
+                        <button class="text-red-400 hover:text-red-600 hover:bg-red-50 rounded p-2 transition-colors ml-4" onclick="deleteCard('${item.id}')"><i class="fa-solid fa-trash"></i></button>
+                    </div>`;
+                cardsList.appendChild(card);
+            });
+        }
+        window.deleteCard = function(id) { questions = questions.filter(q => q.id !== id); saveData(); renderCards(); updateDashboard(); }
 
         function escapeHTML(str) { return str.replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag])); }
         init();
