@@ -102,12 +102,12 @@
 
         <!-- KNOWLEDGE BASE VIEW -->
         <div id="view-kb" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
-            <div class="mb-8 bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div class="mb-8 bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                 <div>
                     <h3 class="font-bold text-indigo-900 text-lg">Save Data & Progress</h3>
                     <p class="text-sm text-indigo-700">Upload JSON decks or backup your current progress.</p>
                 </div>
-                <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                <div class="flex flex-wrap gap-2 w-full lg:w-auto">
                     <label class="bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold py-2 px-4 rounded-lg cursor-pointer transition-colors shadow-sm flex-1 sm:flex-none text-center">
                         <i class="fa-solid fa-upload mr-2"></i> Upload
                         <input type="file" id="upload-file" class="hidden" accept=".json">
@@ -115,8 +115,11 @@
                     <button id="download-file" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition-colors flex-1 sm:flex-none">
                         <i class="fa-solid fa-download mr-2"></i> Backup
                     </button>
-                    <button id="clear-data" class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-semibold py-2 px-4 rounded-lg transition-colors flex-1 sm:flex-none">
-                        Clear App
+                    <button onclick="document.getElementById('prompt-modal').classList.remove('hidden')" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition-colors flex-1 sm:flex-none whitespace-nowrap">
+                        <i class="fa-solid fa-robot mr-2"></i> AI Prompt
+                    </button>
+                    <button id="clear-data" class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-semibold py-2 px-4 rounded-lg transition-colors flex-1 sm:flex-none whitespace-nowrap">
+                        <i class="fa-solid fa-trash mr-1"></i> Clear App
                     </button>
                 </div>
             </div>
@@ -241,6 +244,30 @@
             </div>
         </div>
     </div>
+    
+    <!-- AI PROMPT MODAL -->
+    <div id="prompt-modal" class="hidden fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center p-6 border-b border-slate-200">
+                <h3 class="text-xl font-bold text-slate-800"><i class="fa-solid fa-robot text-indigo-600 mr-2"></i>Generate Decks with AI</h3>
+                <button onclick="document.getElementById('prompt-modal').classList.remove('hidden')" class="text-slate-400 hover:text-slate-700 p-2"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            
+            <div class="p-6 overflow-y-auto bg-slate-50 flex-grow">
+                <p class="text-slate-600 mb-4 text-sm">Copy the prompt below and paste it into Gemini, ChatGPT, or Claude along with your raw questions and answers to automatically generate a correctly formatted `.json` file for this app.</p>
+                
+                <div class="relative">
+                    <textarea id="ai-prompt-text" class="w-full h-64 p-4 font-mono text-sm text-slate-700 bg-white border border-slate-300 rounded-lg custom-scrollbar resize-none outline-none focus:border-indigo-500 transition-colors" readonly></textarea>
+                    <button onclick="copyPrompt()" id="btn-copy-prompt" class="absolute top-3 right-3 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-600 px-3 py-1.5 rounded shadow-sm text-sm font-bold transition-colors">
+                        <i class="fa-regular fa-copy mr-1"></i> Copy
+                    </button>
+                </div>
+            </div>
+            <div class="p-6 border-t border-slate-200 bg-white text-right">
+                <button onclick="document.getElementById('prompt-modal').classList.add('hidden')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Close</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         const STORAGE_KEY = 'conveyancing-lms-v8';
@@ -344,11 +371,61 @@
             } else {
                 questions = [...defaultQuestions];
             }
+            
+            // Set up AI Prompt text
+            document.getElementById('ai-prompt-text').value = `I have a list of questions and answers. Please convert them into a raw JSON array formatted specifically for my Active Recall LMS app.
+
+RULES:
+1. Strip out any citation numbers, reference numbers (e.g., [662]), or extraneous fluff from the text.
+2. The output MUST be a valid JSON array of objects.
+3. Provide ONLY the raw JSON string in a code block. Do not write any explanations or conversational text before or after it.
+4. Each object must have exactly these keys:
+   - "q": The question string.
+   - "a": The answer string.
+   - "id": A unique string ID (e.g., "q1", "q2").
+   - "level": The integer 0.
+   - "nextReview": The integer 0.
+   - "history": An empty array [].
+
+Example Output Format:
+[
+  {
+    "q": "What does caveat emptor mean?",
+    "a": "Let the buyer beware.",
+    "id": "q1",
+    "level": 0,
+    "nextReview": 0,
+    "history": []
+  }
+]
+
+Here are the questions and answers to process:
+[PASTE YOUR Q&A HERE]`;
+
             saveData();
             updateDashboard();
             renderCards();
             renderKeyboard();
+            
+            // Fix modal close button
+            document.querySelector('#prompt-modal .fa-xmark').parentElement.onclick = () => {
+                document.getElementById('prompt-modal').classList.add('hidden');
+            };
         }
+        
+        window.copyPrompt = function() {
+            const textEl = document.getElementById('ai-prompt-text');
+            const btn = document.getElementById('btn-copy-prompt');
+            navigator.clipboard.writeText(textEl.value).then(() => {
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fa-solid fa-check mr-1 text-emerald-600"></i> Copied!';
+                btn.classList.add('border-emerald-300', 'bg-emerald-50');
+                setTimeout(() => { 
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('border-emerald-300', 'bg-emerald-50');
+                }, 2000);
+            });
+        };
 
         function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(questions)); }
 
