@@ -27,6 +27,7 @@ body{background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-syste
 button,select,input{font:inherit;color:inherit}
 button{background:var(--panel);border:1px solid var(--line2);border-radius:6px;padding:6px 10px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
 button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+a.btn-home{background:var(--panel);border:1px solid var(--line2);border-radius:6px;padding:6px 10px;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;text-decoration:none;color:inherit;font:inherit}a.btn-home:hover{border-color:var(--accent);color:var(--accent)}
 button:disabled{opacity:.45;cursor:default}
 button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 button.primary:hover:not(:disabled){filter:brightness(1.08);color:#fff}
@@ -116,6 +117,8 @@ textarea.fld{resize:none;line-height:1.15}
 <body>
 
 <header class="bar">
+  <a href="./index.html" class="btn-home" title="Return to App Orbit">← Home</a>
+  <span class="sep"></span>
   <div class="brand">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6M9 11h3"/></svg>
     Local PDF Editor
