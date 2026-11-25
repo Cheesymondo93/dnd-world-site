@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>App Orbit — Personal Launcher</title>
+  
+  <!-- Google Fonts: Inter & Space Grotesk -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            display: ['Space Grotesk', 'Inter', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    :root {
+      --orbit-radius: clamp(130px, 24vmin, 210px);
+    }
+
+    /* Smooth 3.5s cinematic crossfade layers for scenic vistas */
+    .bg-layer {
+      transition: opacity 3.5s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: opacity;
+    }
+
+    /* Slow meditative Ken Burns subtle zoom & pan motion */
+    @keyframes kenBurnsSlow {
+      0% {
+        transform: scale(1.0) translate3d(0%, 0%, 0);
+      }
+      50% {
+        transform: scale(1.09) translate3d(-1.2%, -0.8%, 0);
+      }
+      100% {
+        transform: scale(1.04) translate3d(1.0%, 0.6%, 0);
+      }
+    }
+
+    .ken-burns-active {
+      animation: kenBurnsSlow 95s ease-in-out infinite alternate;
+      will-change: transform;
+    }
+
+    /* Orbital Ring & Floating Glass Nodes — 100% visible from frame 1 */
+    .orbit-ring {
+      width: calc(var(--orbit-radius) * 2);
+      height: calc(var(--orbit-radius) * 2);
+    }
+
+    .orbit-node {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      opacity: 1 !important;
+      visibility: visible !important;
+      will-change: transform;
+      transform: translate3d(
+        calc(cos(var(--angle, 0rad)) * var(--orbit-radius)),
+        calc(sin(var(--angle, 0rad)) * var(--orbit-radius)),
+        0
+      ) translate(-50%, -50%);
+    }
+
+    .orbit-pill {
+      opacity: 1 !important;
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(16px) saturate(160%);
+      -webkit-backdrop-filter: blur(16px) saturate(160%);
+      border: 1.5px solid rgba(255, 255, 255, 0.28);
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.68);
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                  box-shadow 0.28s ease,
+                  border-color 0.28s ease,
+                  background-color 0.28s ease;
+    }
+
+    .orbit-node:hover .orbit-pill,
+    .orbit-node:focus-within .orbit-pill {
+      transform: scale(1.08);
+    }
+
+    /* Custom Scrollbar for Drawer */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 9999px; }
+  </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden bg-zinc-950 text-white select-none font-sans">
+
+  <!-- =======================================================================
+       DYNAMIC VIDEO GAME LANDSCAPE VISTA BACKGROUND ENGINE (z-0 / z-1)
+       ======================================================================= -->
+  <div id="bgStage" class="bg-stage fixed inset-0 z-0 overflow-hidden bg-zinc-950 pointer-events-none">
+    <!-- Procedural Atmospheric Shader Fallback Canvas (Zero broken images guarantee) -->
+    <canvas id="fallbackVistaCanvas" class="absolute inset-0 w-full h-full object-cover opacity-100 transition-opacity duration-1000"></canvas>
+
+    <!-- Layer A -->
+    <div id="bgLayerA" class="bg-layer absolute inset-0 opacity-0 overflow-hidden">
+      <img id="bgBlurA" src="" alt="" aria-hidden="true" class="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-45 brightness-75 transition-opacity duration-500" />
+      <img id="bgImgA" src="" alt="Scenic Video Game Landscape Vista" class="relative w-full h-full object-cover ken-burns-active transition-all duration-500" />
+    </div>
+
+    <!-- Layer B -->
+    <div id="bgLayerB" class="bg-layer absolute inset-0 opacity-0 overflow-hidden">
+      <img id="bgBlurB" src="" alt="" aria-hidden="true" class="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-45 brightness-75 transition-opacity duration-500" />
+      <img id="bgImgB" src="" alt="Scenic Video Game Landscape Vista" class="relative w-full h-full object-cover ken-burns-active transition-all duration-500" />
+    </div>
+  </div>
+
+  <!-- Subtle Atmospheric Vignette & Readability Scrim (z-1) -->
+  <div class="fixed inset-0 z-[1] pointer-events-none">
+    <div class="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/65"></div>
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(9,9,11,0.35)_0%,rgba(9,9,11,0.08)_55%,rgba(9,9,11,0.55)_100%)]"></div>
+  </div>
+
+  <!-- =======================================================================
+       EXACT CENTERPIECE: ORBITAL RING & COUNTER-ROTATING FLOATING BUTTONS (z-10)
+       ======================================================================= -->
+  <main class="orbit-stage fixed inset-0 z-10 flex items-center justify-center pointer-events-none">
+    <div id="orbitStage" class="relative flex items-center justify-center">
+      
+      <!-- Subtle Outer Orbital Ring Path -->
+      <div class="orbit-ring rounded-full border border-dashed border-white/20 pointer-events-none"></div>
+
+      <!-- Orbiting App Nodes Container (Pre-populated & updated cleanly by JS) -->
+      <div id="orbitNodesLayer" class="absolute inset-0 pointer-events-none">
+        <div class="orbit-node pointer-events-auto" style="--angle: -1.5708rad;">
+          <a href="./memory-revision.html" class="orbit-pill group flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5 rounded-full text-white no-underline hover:border-indigo-300">
+            <span class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border bg-indigo-500/25 text-indigo-300 border-indigo-400/40 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/></svg>
+            </span>
+            <span class="text-left pr-1">
+              <span class="block font-display text-xs sm:text-sm font-bold tracking-tight text-white whitespace-nowrap">Memory Revision</span>
+              <span class="block text-[10px] sm:text-[11px] text-zinc-300 whitespace-nowrap">Spaced Repetition</span>
+            </span>
+          </a>
+        </div>
+        <div class="orbit-node pointer-events-auto" style="--angle: 1.5708rad;">
+          <a href="./pdf-editor.html" class="orbit-pill group flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5 rounded-full text-white no-underline hover:border-rose-300">
+            <span class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border bg-rose-500/25 text-rose-300 border-rose-400/40 flex items-center justify-center shrink-0">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+            </span>
+            <span class="text-left pr-1">
+              <span class="block font-display text-xs sm:text-sm font-bold tracking-tight text-white whitespace-nowrap">PDF Editor</span>
+              <span class="block text-[10px] sm:text-[11px] text-zinc-300 whitespace-nowrap">Document Studio</span>
+            </span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- =======================================================================
+       MINIMAL BOTTOM BAR: GAME & LOCATION + NEXT VISTA + LOCK VISTA (z-20)
+       ======================================================================= -->
+  <footer class="fixed bottom-4 left-4 right-4 z-20 flex items-center justify-between gap-2 pointer-events-none">
+    <!-- Unified Compact Vista Pill -->
+    <div id="vistaCaptionPill" class="pointer-events-auto inline-flex items-center gap-1.5 pl-3.5 pr-1.5 py-1.5 rounded-full bg-zinc-950/65 border border-white/15 backdrop-blur-md text-xs text-zinc-200 shadow-lg max-w-[calc(100vw-4.5rem)]">
+      <span id="vistaStatusDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+      <span id="vistaTitleText" class="font-medium text-white truncate">Skellige Sea Cliffs &mdash; The Witcher 3</span>
+      
+      <span class="h-3.5 w-px bg-white/15 mx-1 shrink-0"></span>
+
+      <!-- Next Vista -->
+      <button
+        id="nextBgBtn"
+        type="button"
+        title="Next Vista (Right Arrow)"
+        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium text-zinc-200 hover:text-white hover:bg-white/15 active:scale-95 transition cursor-pointer shrink-0"
+      >
+        <svg class="w-3 h-3 text-sky-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
+        </svg>
+        <span class="hidden sm:inline">Next Vista</span>
+      </button>
+
+      <!-- Lock / Unlock Vista -->
+      <button
+        id="lockVistaBtn"
+        type="button"
+        title="Lock / Unlock Current Vista"
+        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium text-zinc-200 hover:text-white hover:bg-white/15 active:scale-95 transition cursor-pointer shrink-0"
+        aria-label="Lock or unlock current vista"
+      >
+        <svg id="vistaUnlockedIcon" class="w-3 h-3 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+        </svg>
+        <svg id="vistaLockedIcon" class="w-3 h-3 hidden text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        <span id="lockVistaLabel" class="hidden sm:inline">Lock Vista</span>
+      </button>
+    </div>
+
+    <!-- Discreet Settings Gear Button -->
+    <button
+      id="openDrawerBtn"
+      type="button"
+      title="Customize Orbit & Apps"
+      aria-label="Customize Orbit and Apps"
+      class="pointer-events-auto p-2.5 rounded-full bg-zinc-950/65 border border-white/15 backdrop-blur-md text-zinc-300 hover:text-white hover:bg-white/15 shadow-lg active:scale-95 transition cursor-pointer shrink-0"
+    >
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
+    </button>
+  </footer>
+
+  <!-- =======================================================================
+       SLIDE-OUT CUSTOMIZATION DRAWER (Apps + Orbit Speed + Vista Timing)
+       ======================================================================= -->
+  <div id="drawerBackdrop" class="fixed inset-0 z-40 hidden bg-black/60 backdrop-blur-xs transition-opacity"></div>
+  
+  <aside
+    id="settingsDrawer"
+    class="fixed top-0 right-0 bottom-0 z-50 w-full max-w-md bg-zinc-950/95 border-l border-white/15 backdrop-blur-xl shadow-2xl transform translate-x-full transition-transform duration-300 ease-out flex flex-col"
+    aria-label="Customize App Orbit"
+  >
+    <!-- Drawer Header -->
+    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
+      <div>
+        <h2 class="font-display text-base font-bold text-white">Customize App Orbit</h2>
+        <p class="text-xs text-zinc-400">Edit orbiting links, speed, or scenic vista duration</p>
+      </div>
+      <button
+        id="closeDrawerBtn"
+        type="button"
+        class="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+        aria-label="Close settings drawer"
+      >
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18" /><path d="m6 6 12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Drawer Content -->
+    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+      
+      <!-- Orbit Physics -->
+      <section class="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-4">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-indigo-300">Orbit Settings</h3>
+
+        <div>
+          <div class="flex items-center justify-between text-xs mb-1.5">
+            <label for="orbitSpeedSlider" class="text-zinc-300">Orbit Rotation Speed</label>
+            <span id="orbitSpeedValue" class="font-mono text-indigo-300">1.0x</span>
+          </div>
+          <input
+            id="orbitSpeedSlider"
+            type="range"
+            min="0"
+            max="3"
+            step="0.25"
+            value="1"
+            class="w-full accent-indigo-500 cursor-pointer"
+          />
+        </div>
+      </section>
+
+      <!-- Scenic Video Game Vistas Timing & Selection -->
+      <section class="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-3">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-sky-300">Scenic Game Vistas</h3>
+        
+        <div>
+          <label for="vistaDurationSelect" class="block text-xs text-zinc-300 mb-1.5">Vista Display Duration</label>
+          <select
+            id="vistaDurationSelect"
+            class="w-full px-3 py-2 rounded-xl text-xs bg-zinc-900 border border-white/15 text-white focus:outline-none focus:border-sky-400"
+          >
+            <option value="30000">30 Seconds (Relaxed)</option>
+            <option value="45000">45 Seconds (Default Meditative)</option>
+            <option value="90000">90 Seconds (Extended Study)</option>
+            <option value="0">Lock Current Vista (Infinite)</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="vistaJumpSelect" class="block text-xs text-zinc-300 mb-1.5">Select Specific Landscape</label>
+          <select
+            id="vistaJumpSelect"
+            class="w-full px-3 py-2 rounded-xl text-xs bg-zinc-900 border border-white/15 text-white focus:outline-none focus:border-sky-400"
+          ></select>
+        </div>
+
+        <div class="space-y-1.5 pt-1">
+          <label for="customBgUrlInput" class="block text-xs text-zinc-300">Optional Custom Wallpaper URL</label>
+          <input
+            id="customBgUrlInput"
+            type="url"
+            placeholder="https://images.unsplash.com/..."
+            class="w-full px-3 py-2 rounded-xl text-xs bg-zinc-900 border border-white/15 text-white focus:outline-none focus:border-sky-400"
+          />
+          <p class="text-[10px] text-zinc-400">Leave blank to cycle through the curated video game vistas.</p>
+        </div>
+      </section>
+
+      <!-- Orbiting Apps List -->
+      <section class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-rose-300">Orbiting App Buttons</h3>
+          <span id="drawerAppCount" class="text-[11px] text-zinc-400">2 apps</span>
+        </div>
+
+        <div id="drawerAppsList" class="space-y-3"></div>
+
+        <button
+          id="addOrbitAppBtn"
+          type="button"
+          class="w-full py-2.5 px-4 rounded-xl border border-dashed border-white/25 hover:border-indigo-400 text-xs font-medium text-zinc-300 hover:text-white transition flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14" /><path d="M12 5v14" />
+          </svg>
+          <span>Add App to Orbit</span>
+        </button>
+      </section>
+
+      <!-- Permanent HTML Export Snippet -->
+      <section class="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs font-semibold text-zinc-300">Permanent Config Snippet</h3>
+          <button
+            id="copyConfigBtn"
+            type="button"
+            class="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/10 hover:bg-white/20 text-white transition cursor-pointer"
+          >
+            Copy JS
+          </button>
+        </div>
+        <textarea
+          id="configExportBox"
+          rows="4"
+          readonly
+          class="w-full p-2.5 rounded-xl font-mono text-[11px] bg-zinc-900 border border-white/15 text-zinc-300 focus:outline-none"
+        ></textarea>
+      </section>
+    </div>
+
+    <!-- Drawer Footer Actions -->
+    <div class="px-6 py-4 border-t border-white/10 flex items-center justify-between gap-3 bg-zinc-950">
+      <button
+        id="resetAllBtn"
+        type="button"
+        class="px-3 py-2 rounded-xl text-xs font-medium text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+      >
+        Reset Defaults
+      </button>
+      <div class="flex items-center gap-2">
+        <button
+          id="cancelDrawerBtn"
+          type="button"
+          class="px-3.5 py-2 rounded-xl text-xs font-medium text-zinc-300 hover:bg-white/10 transition cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button
+          id="saveDrawerBtn"
+          type="button"
+          class="px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/50 transition cursor-pointer"
+        >
+          Save & Apply
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Toast Notification (z-50) -->
+  <div
+    id="toast"
+    role="status"
+    aria-live="polite"
+    class="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-zinc-900/95 border border-white/20 text-xs font-medium text-white shadow-2xl opacity-0 -translate-y-2 pointer-events-none transition-all duration-200"
+  >
+    <span id="toastText">Saved</span>
+  </div>
+
+  <!-- =======================================================================
+       APPLICATION LOGIC (IMMEDIATE ORBIT RENDER + SCENIC GAME VISTAS)
+       ======================================================================= -->
+  <script>
+    const STORAGE_KEY = 'app-orbit-personal-v3';
+
+    /**
+     * ============================================================================
+     * DEFAULT ORBITING APPS
+     * ============================================================================
+     */
+    const DEFAULT_APPS = [
+      {
+        id: 'memory-revision',
+        title: 'Memory Revision',
+        subtitle: 'Spaced Repetition',
+        href: './memory-revision.html',
+        icon: 'brain',
+        theme: 'indigo'
+      },
+      {
+        id: 'pdf-editor',
+        title: 'PDF Editor',
+        subtitle: 'Document Studio',
+        href: './pdf-editor.html',
+        icon: 'pdf',
+        theme: 'rose'
+      }
+    ];
+
+    /**
+     * ============================================================================
+     * CURATED SCENIC VIDEO GAME LANDSCAPE VISTAS
+     * ============================================================================
+     */
+    const GAME_LANDSCAPES = [
+      {
+        id: 'witcher-skellige',
+        title: 'Skellige Sea Cliffs — The Witcher 3',
+        atmosphere: 'Emerald Highland',
+        url: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1920&q=85',
+        palette: ['#0f292e', '#1e4d4c', '#5fa897']
+      },
+      {
+        id: 'skyrim-aurora',
+        title: 'Throat of the World Aurora — Skyrim',
+        atmosphere: 'Nordic Starlight',
+        url: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?auto=format&fit=crop&w=1920&q=85',
+        palette: ['#090d1e', '#163847', '#34d399']
+      },
+      {
+        id: 'elden-erdtree',
+        title: 'Altus Golden Mist — Elden Ring',
+        atmosphere: 'Erdtree Dusk',
+        url: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1920&q=85',
+        palette: ['#24190e', '#593a1a', '#eab308']
+      },
+      {
+        id: 'rdr2-heartlands',
+        title: 'Big Valley Sunset — Red Dead Redemption 2',
+        atmosphere: 'Amber Frontier',
+        url: 'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?auto=format&fit=crop&w=1920&q=85',
+        palette: ['#291512', '#7c2d12', '#f59e0b']
+      },
+      {
+        id: 'tsushima-maple',
+        title: 'Omi Monastery Ridge — Ghost of Tsushima',
+        atmosphere: 'Crimson Autumn',
+        url: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1920&q=85',
+        palette: ['#2b1116', '#7f1d1d', '#fb7185']
+      },
+      {
+        id: 'zelda-hyrule',
+        title: 'Akkala Highlands — Breath of the Wild',
+        atmosphere: 'Celestial Meadow',
+        url: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1920&q=85',
+        palette: ['#0c243c', '#0369a1', '#38bdf8']
+      },
+      {
+        id: 'horizon-sundom',
+        title: 'Meridian Mesa Canyon — Horizon Zero Dawn',
+        atmosphere: 'Solar Sandstone',
+        url: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1920&q=85',
+        palette: ['#2c1810', '#9a3412', '#fb923c']
+      },
+      {
+        id: 'cyberpunk-nightcity',
+        title: 'Kabuki Rain Overlook — Cyberpunk 2077',
+        atmosphere: 'Neon Noir',
+        url: 'https://images.unsplash.com/photo-1519608487953-e999c86e7455?auto=format&fit=crop&w=1920&q=85',
+        palette: ['#130b29', '#4c1d95', '#22d3ee']
+      }
+    ];
+
+    const ICONS = {
+      brain: `<svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/></svg>`,
+      pdf: `<svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>`,
+      code: `<svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+      sparkles: `<svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>`,
+      compass: `<svg class="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`
+    };
+
+    // High-contrast glowing glass themes for floating pills
+    const THEMES = {
+      indigo: {
+        badge: 'bg-indigo-500/25 text-indigo-300 border-indigo-400/40',
+        pill: 'hover:bg-indigo-950/90 hover:border-indigo-300 hover:shadow-[0_20px_50px_rgba(99,102,241,0.65)]'
+      },
+      rose: {
+        badge: 'bg-rose-500/25 text-rose-300 border-rose-400/40',
+        pill: 'hover:bg-rose-950/90 hover:border-rose-300 hover:shadow-[0_20px_50px_rgba(244,63,94,0.65)]'
+      },
+      emerald: {
+        badge: 'bg-emerald-500/25 text-emerald-300 border-emerald-400/40',
+        pill: 'hover:bg-emerald-950/90 hover:border-emerald-300 hover:shadow-[0_20px_50px_rgba(52,211,153,0.65)]'
+      },
+      amber: {
+        badge: 'bg-amber-500/25 text-amber-300 border-amber-400/40',
+        pill: 'hover:bg-amber-950/90 hover:border-amber-300 hover:shadow-[0_20px_50px_rgba(251,191,36,0.65)]'
+      },
+      cyan: {
+        badge: 'bg-cyan-500/25 text-cyan-300 border-cyan-400/40',
+        pill: 'hover:bg-cyan-950/90 hover:border-cyan-300 hover:shadow-[0_20px_50px_rgba(34,211,238,0.65)]'
+      }
+    };
+
+    // Application State
+    let settings = {
+      orbitSpeed: 1.0,
+      vistaDuration: 45000,
+      customBgUrl: '',
+      fitMode: 'cover',
+      apps: JSON.parse(JSON.stringify(DEFAULT_APPS))
+    };
+
+    let currentAngle = -Math.PI / 2;
+    let currentVelocity = 0.28;
+    let isOrbitManuallyPaused = false;
+    let isHoveringNode = false;
+    let orbitNodeElements = [];
+
+    let vistaQueue = [];
+    let currentVistaIndex = 0;
+    let activeLayer = 'A';
+    let isVistaLocked = false;
+    let slideElapsedMs = 0;
+    let lastFrameTime = performance.now();
+
+    let draftApps = [];
+    let toastTimer = null;
+
+    // ============================================================================
+    // STORAGE & UTILITY HELPERS
+    // ============================================================================
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            settings = {
+              ...settings,
+              ...parsed,
+              apps: Array.isArray(parsed.apps) && parsed.apps.length > 0
+                ? parsed.apps
+                : JSON.parse(JSON.stringify(DEFAULT_APPS))
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load saved settings:', err);
+      }
+    }
+
+    function persistSettings() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      } catch (err) {
+        console.warn('Could not save settings:', err);
+      }
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      const text = document.getElementById('toastText');
+      if (!toast || !text) return;
+      text.textContent = message;
+      toast.classList.remove('opacity-0', '-translate-y-2');
+      toast.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        toast.classList.remove('opacity-100', 'translate-y-0');
+      }, 2400);
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // ============================================================================
+    // ORBITAL NODES BUILDER & SMOOTH ANIMATION
+    // ============================================================================
+    function getOrbitRadiusPx() {
+      const vmin = Math.min(window.innerWidth, window.innerHeight);
+      return Math.max(130, Math.min(210, vmin * 0.24));
+    }
+
+    function positionOrbitNodes() {
+      const count = orbitNodeElements.length;
+      if (count === 0) return;
+      const radius = getOrbitRadiusPx();
+      const step = (Math.PI * 2) / count;
+
+      orbitNodeElements.forEach((nodeEl, index) => {
+        const theta = currentAngle + index * step;
+        const x = Math.cos(theta) * radius;
+        const y = Math.sin(theta) * radius;
+        nodeEl.style.setProperty('--angle', `${theta}rad`);
+        nodeEl.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) translate(-50%, -50%)`;
+      });
+    }
+
+    function buildOrbitNodes() {
+      const container = document.getElementById('orbitNodesLayer');
+      if (!container) return;
+      container.innerHTML = '';
+      orbitNodeElements = [];
+
+      settings.apps.forEach((app) => {
+        const theme = THEMES[app.theme] || THEMES.indigo;
+        const iconSvg = ICONS[app.icon] || ICONS.sparkles;
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'orbit-node pointer-events-auto';
+
+        const link = document.createElement('a');
+        link.href = app.href || '#';
+        link.className = `orbit-pill group flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-3.5 rounded-full text-white no-underline ${theme.pill}`;
+
+        link.innerHTML = `
+          <span class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border ${theme.badge} flex items-center justify-center shrink-0">
+            ${iconSvg}
+          </span>
+          <span class="text-left pr-1">
+            <span class="block font-display text-xs sm:text-sm font-bold tracking-tight text-white whitespace-nowrap">${escapeHtml(app.title)}</span>
+            ${app.subtitle ? `<span class="block text-[10px] sm:text-[11px] text-zinc-300 whitespace-nowrap">${escapeHtml(app.subtitle)}</span>` : ''}
+          </span>
+        `;
+
+        wrapper.addEventListener('mouseenter', () => {
+          isHoveringNode = true;
+        });
+        wrapper.addEventListener('mouseleave', () => {
+          isHoveringNode = false;
+        });
+        wrapper.addEventListener('focusin', () => {
+          isHoveringNode = true;
+        });
+        wrapper.addEventListener('focusout', () => {
+          isHoveringNode = false;
+        });
+
+        wrapper.appendChild(link);
+        container.appendChild(wrapper);
+        orbitNodeElements.push(wrapper);
+      });
+
+      positionOrbitNodes();
+    }
+
+    // ============================================================================
+    // SCENIC VIDEO GAME VISTA ENGINE & PROCEDURAL MOUNTAIN FALLBACK
+    // ============================================================================
+    function renderProceduralVistaCanvas(palette = ['#0f172a', '#1e293b', '#38bdf8']) {
+      const canvas = document.getElementById('fallbackVistaCanvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const w = (canvas.width = window.innerWidth);
+      const h = (canvas.height = window.innerHeight);
+
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+      skyGrad.addColorStop(0, palette[0] || '#090d1e');
+      skyGrad.addColorStop(0.55, palette[1] || '#163847');
+      skyGrad.addColorStop(1, '#09090b');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      // Atmospheric horizon glow
+      const glow = ctx.createRadialGradient(w * 0.5, h * 0.45, 20, w * 0.5, h * 0.45, Math.max(w, h) * 0.55);
+      glow.addColorStop(0, `${palette[2] || '#38bdf8'}44`);
+      glow.addColorStop(1, 'transparent');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, w, h);
+
+      // Layered distant ridges
+      const layers = [
+        { baseY: h * 0.62, amp: h * 0.11, color: 'rgba(15, 23, 42, 0.55)', seed: 1.3 },
+        { baseY: h * 0.74, amp: h * 0.09, color: 'rgba(9, 13, 24, 0.78)', seed: 2.7 },
+        { baseY: h * 0.86, amp: h * 0.06, color: 'rgba(9, 9, 11, 0.94)', seed: 4.1 }
+      ];
+
+      layers.forEach((layer) => {
+        ctx.beginPath();
+        ctx.moveTo(0, h);
+        for (let x = 0; x <= w + 40; x += 40) {
+          const nx = x / Math.max(w, 1);
+          const ridge =
+            Math.sin(nx * 5.2 + layer.seed) * layer.amp * 0.6 +
+            Math.cos(nx * 11.4 + layer.seed * 2) * layer.amp * 0.4;
+          ctx.lineTo(x, layer.baseY - ridge);
+        }
+        ctx.lineTo(w, h);
+        ctx.closePath();
+        ctx.fillStyle = layer.color;
+        ctx.fill();
+      });
+    }
+
+    function applyFitMode() {
+      const fitClass = settings.fitMode === 'contain' ? 'object-contain' : 'object-cover';
+      ['bgImgA', 'bgImgB'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('object-cover', 'object-contain');
+        el.classList.add(fitClass);
+      });
+    }
+
+    function buildVistaQueue() {
+      if (settings.customBgUrl) {
+        vistaQueue = [
+          {
+            id: 'custom-vista',
+            title: 'Custom Landscape Wallpaper',
+            atmosphere: 'Personal Vista',
+            url: settings.customBgUrl,
+            palette: ['#0f172a', '#1e293b', '#6366f1']
+          },
+          ...GAME_LANDSCAPES
+        ];
+      } else {
+        vistaQueue = [...GAME_LANDSCAPES];
+      }
+
+      const jumpSelect = document.getElementById('vistaJumpSelect');
+      if (jumpSelect) {
+        jumpSelect.innerHTML = vistaQueue
+          .map((v, idx) => `<option value="${idx}">${escapeHtml(v.title)}</option>`)
+          .join('');
+      }
+    }
+
+    function updateVistaStatusUi() {
+      const dot = document.getElementById('vistaStatusDot');
+      const unlockedIcon = document.getElementById('vistaUnlockedIcon');
+      const lockedIcon = document.getElementById('vistaLockedIcon');
+      const label = document.getElementById('lockVistaLabel');
+      const locked = isVistaLocked || Number(settings.vistaDuration) === 0;
+
+      if (dot) {
+        dot.classList.toggle('bg-amber-400', locked);
+        dot.classList.toggle('bg-emerald-400', !locked);
+      }
+      if (unlockedIcon) unlockedIcon.classList.toggle('hidden', locked);
+      if (lockedIcon) lockedIcon.classList.toggle('hidden', !locked);
+      if (label) label.textContent = locked ? 'Locked' : 'Lock Vista';
+    }
+
+    function showVistaAtIndex(index) {
+      if (!vistaQueue.length) return;
+      currentVistaIndex = ((index % vistaQueue.length) + vistaQueue.length) % vistaQueue.length;
+      slideElapsedMs = 0;
+
+      const vista = vistaQueue[currentVistaIndex];
+      renderProceduralVistaCanvas(vista.palette);
+
+      const titleEl = document.getElementById('vistaTitleText');
+      const jumpSelect = document.getElementById('vistaJumpSelect');
+      if (titleEl) titleEl.textContent = vista.title;
+      if (jumpSelect) jumpSelect.value = String(currentVistaIndex);
+
+      const nextLayerKey = activeLayer === 'A' ? 'B' : 'A';
+      const prevLayerEl = document.getElementById(`bgLayer${activeLayer}`);
+      const nextLayerEl = document.getElementById(`bgLayer${nextLayerKey}`);
+      const nextImgEl = document.getElementById(`bgImg${nextLayerKey}`);
+      const nextBlurEl = document.getElementById(`bgBlur${nextLayerKey}`);
+
+      if (!nextLayerEl || !nextImgEl) return;
+
+      const preloader = new Image();
+      preloader.onload = () => {
+        nextImgEl.src = vista.url;
+        if (nextBlurEl) nextBlurEl.src = vista.url;
+        nextLayerEl.classList.remove('opacity-0');
+        nextLayerEl.classList.add('opacity-100');
+        if (prevLayerEl) {
+          prevLayerEl.classList.remove('opacity-100');
+          prevLayerEl.classList.add('opacity-0');
+        }
+        activeLayer = nextLayerKey;
+      };
+      preloader.onerror = () => {
+        // Fallback canvas remains visible cleanly without broken image icon
+        if (prevLayerEl) {
+          prevLayerEl.classList.remove('opacity-100');
+          prevLayerEl.classList.add('opacity-0');
+        }
+      };
+      preloader.src = vista.url;
+    }
+
+    function advanceBackground(step = 1) {
+      showVistaAtIndex(currentVistaIndex + step);
+    }
+
+    // ============================================================================
+    // MAIN ANIMATION LOOP (ORBIT PHYSICS + SCENIC VISTA TIMER)
+    // ============================================================================
+    function animateLoop(now) {
+      const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
+      lastFrameTime = now;
+
+      const shouldPauseOrbit = isOrbitManuallyPaused || isHoveringNode;
+      const targetVelocity = shouldPauseOrbit ? 0 : 0.28 * Number(settings.orbitSpeed);
+      currentVelocity += (targetVelocity - currentVelocity) * Math.min(1, dt * 7);
+
+      if (Math.abs(currentVelocity) > 0.0001) {
+        currentAngle = (currentAngle + currentVelocity * dt) % (Math.PI * 2);
+        positionOrbitNodes();
+      }
+
+      // Scenic vista timer
+      const duration = Number(settings.vistaDuration);
+      if (!isVistaLocked && duration > 0 && vistaQueue.length > 1) {
+        slideElapsedMs += dt * 1000;
+        if (slideElapsedMs >= duration) {
+          advanceBackground(1);
+        }
+      }
+
+      requestAnimationFrame(animateLoop);
+    }
+
+    // ============================================================================
+    // SETTINGS DRAWER LOGIC
+    // ============================================================================
+    function renderDrawerApps() {
+      const listEl = document.getElementById('drawerAppsList');
+      const countEl = document.getElementById('drawerAppCount');
+      const exportBox = document.getElementById('configExportBox');
+      if (!listEl) return;
+
+      if (countEl) {
+        countEl.textContent = `${draftApps.length} ${draftApps.length === 1 ? 'app' : 'apps'}`;
+      }
+
+      listEl.innerHTML = draftApps
+        .map(
+          (app, idx) => `
+          <div class="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-2.5" data-app-idx="${idx}">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">App #${idx + 1}</span>
+              ${
+                draftApps.length > 1
+                  ? `<button type="button" data-remove-idx="${idx}" class="text-[11px] text-rose-400 hover:text-rose-300 cursor-pointer">Remove</button>`
+                  : ''
+              }
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                data-field="title"
+                data-idx="${idx}"
+                value="${escapeHtml(app.title)}"
+                placeholder="App Title"
+                class="px-2.5 py-1.5 rounded-lg text-xs bg-zinc-900 border border-white/15 text-white focus:outline-none focus:border-indigo-400"
+              />
+              <input
+                type="text"
+                data-field="subtitle"
+                data-idx="${idx}"
+                value="${escapeHtml(app.subtitle || '')}"
+                placeholder="Subtitle"
+                class="px-2.5 py-1.5 rounded-lg text-xs bg-zinc-900 border border-white/15 text-white focus:outline-none focus:border-indigo-400"
+              />
+            </div>
+            <input
+              type="text"
+              data-field="href"
+              data-idx="${idx}"
+              value="${escapeHtml(app.href)}"
+              placeholder="./my-app.html"
+              class="w-full px-2.5 py-1.5 rounded-lg text-xs font-mono bg-zinc-900 border border-white/15 text-zinc-200 focus:outline-none focus:border-indigo-400"
+            />
+            <div class="grid grid-cols-2 gap-2">
+              <select
+                data-field="icon"
+                data-idx="${idx}"
+                class="px-2.5 py-1.5 rounded-lg text-xs bg-zinc-900 border border-white/15 text-white focus:outline-none focus:border-indigo-400"
+              >
+                <option value="brain" ${app.icon === 'brain' ? 'selected' : ''}>Icon: Brain</option>
+                <option value="pdf" ${app.icon === 'pdf' ? 'selected' : ''}>Icon: Document</option>
+                <option value="code" ${app.icon === 'code' ? 'selected' : ''}>Icon: Code</option>
+                <option value="sparkles" ${app.icon === 'sparkles' ? 'selected' : ''}>Icon: Sparkles</option>
+                <option value="compass" ${app.icon === 'compass' ? 'selected' : ''}>Icon: Compass</option>
+              </select>
+              <select
+                data-field="theme"
+                data-idx="${idx}"
+                class="px-2.5 py-1.5 rounded-lg text-xs bg-zinc-900 border border-white/15 text-white focus:outline-none focus:border-indigo-400"
+              >
+                <option value="indigo" ${app.theme === 'indigo' ? 'selected' : ''}>Glow: Indigo</option>
+                <option value="rose" ${app.theme === 'rose' ? 'selected' : ''}>Glow: Rose</option>
+                <option value="emerald" ${app.theme === 'emerald' ? 'selected' : ''}>Glow: Emerald</option>
+                <option value="amber" ${app.theme === 'amber' ? 'selected' : ''}>Glow: Amber</option>
+                <option value="cyan" ${app.theme === 'cyan' ? 'selected' : ''}>Glow: Cyan</option>
+              </select>
+            </div>
+          </div>
+        `
+        )
+        .join('');
+
+      if (exportBox) {
+        exportBox.value = `const DEFAULT_APPS = ${JSON.stringify(draftApps, null, 2)};`;
+      }
+    }
+
+    function openDrawer() {
+      draftApps = JSON.parse(JSON.stringify(settings.apps));
+      document.getElementById('orbitSpeedSlider').value = String(settings.orbitSpeed);
+      document.getElementById('orbitSpeedValue').textContent = `${Number(settings.orbitSpeed).toFixed(2)}x`;
+      document.getElementById('vistaDurationSelect').value = String(settings.vistaDuration);
+      document.getElementById('customBgUrlInput').value = settings.customBgUrl || '';
+      document.getElementById('vistaJumpSelect').value = String(currentVistaIndex);
+
+      renderDrawerApps();
+
+      document.getElementById('drawerBackdrop').classList.remove('hidden');
+      document.getElementById('settingsDrawer').classList.remove('translate-x-full');
+    }
+
+    function closeDrawer() {
+      document.getElementById('drawerBackdrop').classList.add('hidden');
+      document.getElementById('settingsDrawer').classList.add('translate-x-full');
+    }
+
+    // ============================================================================
+    // IMMEDIATE BOOTSTRAP + EVENT LISTENERS
+    // ============================================================================
+    function initAppOrbit() {
+      loadSettings();
+      applyFitMode();
+      buildOrbitNodes();
+      buildVistaQueue();
+      updateVistaStatusUi();
+      showVistaAtIndex(0);
+      requestAnimationFrame(animateLoop);
+
+      window.addEventListener('resize', () => {
+        positionOrbitNodes();
+        const activeItem = vistaQueue[currentVistaIndex];
+        if (activeItem) renderProceduralVistaCanvas(activeItem.palette);
+      });
+
+      // Next Scenic Vista Button
+      document.getElementById('nextBgBtn').addEventListener('click', () => {
+        advanceBackground(1);
+      });
+
+      // Lock / Unlock Current Vista
+      document.getElementById('lockVistaBtn').addEventListener('click', () => {
+        isVistaLocked = !isVistaLocked;
+        updateVistaStatusUi();
+        showToast(isVistaLocked ? 'Vista locked' : 'Vista cycling resumed');
+      });
+
+      // Keyboard Shortcuts (ArrowRight = Next Vista, Space = Freeze Orbit)
+      window.addEventListener('keydown', (e) => {
+        const tag = (e.target && e.target.tagName) || '';
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+
+        if (e.code === 'ArrowRight') {
+          e.preventDefault();
+          advanceBackground(1);
+        } else if (e.code === 'Space') {
+          e.preventDefault();
+          isOrbitManuallyPaused = !isOrbitManuallyPaused;
+        } else if (e.code === 'Escape') {
+          closeDrawer();
+        }
+      });
+
+      // Drawer Controls
+      document.getElementById('openDrawerBtn').addEventListener('click', openDrawer);
+      document.getElementById('closeDrawerBtn').addEventListener('click', closeDrawer);
+      document.getElementById('cancelDrawerBtn').addEventListener('click', closeDrawer);
+      document.getElementById('drawerBackdrop').addEventListener('click', closeDrawer);
+
+      document.getElementById('orbitSpeedSlider').addEventListener('input', (e) => {
+        document.getElementById('orbitSpeedValue').textContent = `${Number(e.target.value).toFixed(2)}x`;
+      });
+
+      document.getElementById('vistaJumpSelect').addEventListener('change', (e) => {
+        showVistaAtIndex(Number(e.target.value));
+      });
+
+      document.getElementById('drawerAppsList').addEventListener('input', (e) => {
+        const target = e.target;
+        const idx = Number(target.dataset.idx);
+        const field = target.dataset.field;
+        if (!Number.isNaN(idx) && field && draftApps[idx]) {
+          draftApps[idx][field] = target.value;
+          const exportBox = document.getElementById('configExportBox');
+          if (exportBox) {
+            exportBox.value = `const DEFAULT_APPS = ${JSON.stringify(draftApps, null, 2)};`;
+          }
+        }
+      });
+
+      document.getElementById('drawerAppsList').addEventListener('change', (e) => {
+        const target = e.target;
+        const idx = Number(target.dataset.idx);
+        const field = target.dataset.field;
+        if (!Number.isNaN(idx) && field && draftApps[idx]) {
+          draftApps[idx][field] = target.value;
+          const exportBox = document.getElementById('configExportBox');
+          if (exportBox) {
+            exportBox.value = `const DEFAULT_APPS = ${JSON.stringify(draftApps, null, 2)};`;
+          }
+        }
+      });
+
+      document.getElementById('drawerAppsList').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-idx]');
+        if (!btn) return;
+        const idx = Number(btn.dataset.removeIdx);
+        if (!Number.isNaN(idx) && draftApps.length > 1) {
+          draftApps.splice(idx, 1);
+          renderDrawerApps();
+        }
+      });
+
+      document.getElementById('addOrbitAppBtn').addEventListener('click', () => {
+        const themes = ['emerald', 'amber', 'cyan', 'indigo', 'rose'];
+        const nextTheme = themes[draftApps.length % themes.length];
+        draftApps.push({
+          id: `app-${Date.now()}`,
+          title: 'New Web App',
+          subtitle: 'Single HTML Tool',
+          href: './new-app.html',
+          icon: 'sparkles',
+          theme: nextTheme
+        });
+        renderDrawerApps();
+      });
+
+      document.getElementById('saveDrawerBtn').addEventListener('click', () => {
+        const prevCustomUrl = settings.customBgUrl;
+        settings.orbitSpeed = Number(document.getElementById('orbitSpeedSlider').value);
+        settings.vistaDuration = Number(document.getElementById('vistaDurationSelect').value);
+        settings.customBgUrl = document.getElementById('customBgUrlInput').value.trim();
+        settings.apps = draftApps.map((app) => ({
+          ...app,
+          title: app.title.trim() || 'Untitled App',
+          href: app.href.trim() || '#'
+        }));
+
+        persistSettings();
+        buildOrbitNodes();
+        updateVistaStatusUi();
+
+        if (prevCustomUrl !== settings.customBgUrl) {
+          buildVistaQueue();
+          showVistaAtIndex(0);
+        }
+
+        closeDrawer();
+        showToast('Settings saved');
+      });
+
+      document.getElementById('resetAllBtn').addEventListener('click', () => {
+        localStorage.removeItem(STORAGE_KEY);
+        settings = {
+          orbitSpeed: 1.0,
+          vistaDuration: 45000,
+          customBgUrl: '',
+          fitMode: 'cover',
+          apps: JSON.parse(JSON.stringify(DEFAULT_APPS))
+        };
+        isVistaLocked = false;
+        applyFitMode();
+        buildOrbitNodes();
+        buildVistaQueue();
+        updateVistaStatusUi();
+        showVistaAtIndex(0);
+        closeDrawer();
+        showToast('Restored defaults');
+      });
+
+      document.getElementById('copyConfigBtn').addEventListener('click', () => {
+        const exportBox = document.getElementById('configExportBox');
+        if (!exportBox) return;
+        exportBox.select();
+        try {
+          document.execCommand('copy');
+          showToast('Config copied to clipboard');
+        } catch (err) {
+          showToast('Select and copy manually');
+        }
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initAppOrbit);
+    } else {
+      initAppOrbit();
+    }
+  </script>
+</body>
+</html>
