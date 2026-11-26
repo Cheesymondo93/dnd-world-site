@@ -1122,6 +1122,650 @@ function showToast(msg, color = 'emerald') {
 }
 
 // ----------------------------------------------------------------------------
+// 6. TOOL DURABILITY & EQUIPMENT MANAGEMENT
+// ----------------------------------------------------------------------------
+function getToolTier(slot) {
+  const eq = state.equipped[slot];
+  if (!eq) return 0;
+  return ITEMS[eq.id]?.tier || 0;
+}
+
+function getToolSpeedMult(slot) {
+  const eq = state.equipped[slot];
+  if (!eq) return 1.0;
+  return ITEMS[eq.id]?.speedMult || 1.0;
+}
+
+function equipToolFromBank(itemId) {
+  const item = ITEMS[itemId];
+  if (!item || item.category !== 'tool') return;
+  if (!removeFromBank(itemId, 1)) return;
+
+  // If another tool was equipped in that slot, store it back if full durability, or warn/swap
+  const prev = state.equipped[item.slot];
+  if (prev) {
+    addToBank(prev.id, 1, false);
+    addLog(`🔄 Swapped ${ITEMS[prev.id].name} back into Home Base storage.`);
+  }
+
+  state.equipped[item.slot] = {
+    id: itemId,
+    durability: item.maxDurability,
+    maxDurability: item.maxDurability
+  };
+  playSfx('craft');
+  addLog(`🛠️ Equipped ${item.name} (${item.maxDurability} durability).`);
+  renderAll();
+}
+
+function consumeToolDurability(slot, amount = 1) {
+  const eq = state.equipped[slot];
+  if (!eq) return;
+  // Tool Shed extension reduces wear chance by 12% per level
+  const wearSaveChance = getExtLevel('tool_shed') * 0.12;
+  if (wearSaveChance > 0 && Math.random() < wearSaveChance) return;
+
+  eq.durability -= amount;
+  if (eq.durability <= 0) {
+    const brokenName = ITEMS[eq.id]?.name || 'Tool';
+    state.equipped[slot] = null;
+    playSfx('break');
+    spawnFloatingText(`💥 ${brokenName} Broke!`, 'rose');
+    addLog(`💥 Your ${brokenName} shattered! Auto-equipping spare if available...`);
+
+    // Auto-equip next highest tier tool of the same slot from bank
+    const spares = Object.keys(state.bank)
+      .filter(id => ITEMS[id]?.category === 'tool' && ITEMS[id]?.slot === slot && state.bank[id] > 0)
+      .sort((a, b) => (ITEMS[b].tier || 0) - (ITEMS[a].tier || 0));
+
+    if (spares.length > 0) {
+      equipToolFromBank(spares[0]);
+    } else {
+      renderSidebarTools();
+      // Check if current task now lacks required tool tier
+      if (state.activeTask?.type === 'woodcutting') {
+        const z = WOODCUTTING_ZONES.find(z => z.id === state.activeTask.zoneId);
+        if (z && getToolTier('axe') < z.reqAxeTier) {
+          addLog(`⚠️ Stopped ${z.name}: no Tier ${z.reqAxeTier}+ Axe equipped.`);
+          initiateProportionalReturn(null);
+        }
+      } else if (state.activeTask?.type === 'mining') {
+        const l = MINING_LAYERS.find(l => l.id === state.activeTask.layerId);
+        if (l && getToolTier('pickaxe') < l.reqPickTier) {
+          addLog(`⚠️ Stopped ${l.name}: no Tier ${l.reqPickTier}+ Pickaxe equipped.`);
+          initiateProportionalReturn(null);
+        }
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+// 7. MULTI-STAGE RECURSIVE CRAFTING PLANNER & BATCH HELPERS
+// ----------------------------------------------------------------------------
+function setCraftBatch(recipeId, qty) {
+  state.craftBatchSelection[recipeId] = Math.max(1, Math.floor(qty || 1));
+  renderAll();
+}
+
+function getMaxCraftableBatch(recipeId) {
+  let low = 0;
+  let high = 250;
+  let best = 0;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (mid === 0) {
+      low = 1;
+      continue;
+    }
+    const plan = resolveCraftingPlan(recipeId, mid);
+    if (plan.craftable) {
+      best = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return best;
+}
+
+/**
+ * Resolves whether `targetRecipeId` can be crafted `batchQty` times, automatically
+ * planning intermediate crafts (e.g., Logs -> Planks -> Sticks -> Pickaxe)
+ * when the player holds enough base resources in their bank.
+ */
+function resolveCraftingPlan(targetRecipeId, batchQty = 1) {
+  const recipe = RECIPES.find(r => r.id === targetRecipeId);
+  if (!recipe) return { craftable: false, stages: [] };
+
+  const simBank = { ...state.bank };
+  const stages = []; // Ordered list of { recipe, times, outputName }
+
+  function acquire(itemId, neededQty, preferredRecipeId = null, depth = 0) {
+    if (depth > 5) return false;
+    const available = simBank[itemId] || 0;
+    if (available >= neededQty && !preferredRecipeId) {
+      simBank[itemId] -= neededQty;
+      return true;
+    }
+
+    const deficit = preferredRecipeId ? neededQty : (neededQty - available);
+    if (!preferredRecipeId && available > 0) {
+      simBank[itemId] = 0;
+    }
+
+    // Find candidate recipes that produce itemId
+    const candidates = preferredRecipeId
+      ? RECIPES.filter(r => r.id === preferredRecipeId)
+      : RECIPES.filter(r => r.out === itemId);
+
+    for (const cand of candidates) {
+      const bankSnapshot = { ...simBank };
+      const stageSnapshotLen = stages.length;
+      const craftsNeeded = Math.ceil(deficit / cand.count);
+      let ok = true;
+
+      for (const [reqItem, reqQty] of Object.entries(cand.req)) {
+        if (!acquire(reqItem, reqQty * craftsNeeded, null, depth + 1)) {
+          ok = false;
+          break;
+        }
+      }
+
+      if (ok) {
+        const produced = craftsNeeded * cand.count;
+        const leftover = produced - deficit;
+        if (leftover > 0) {
+          simBank[itemId] = (simBank[itemId] || 0) + leftover;
+        }
+        // Merge with existing stage if same recipe already queued
+        const existing = stages.find(s => s.recipe.id === cand.id);
+        if (existing) {
+          existing.times += craftsNeeded;
+        } else {
+          stages.push({
+            recipe: cand,
+            times: craftsNeeded,
+            outputName: ITEMS[cand.out]?.name || cand.out
+          });
+        }
+        return true;
+      } else {
+        // Rollback simulated bank for next candidate (e.g. try Birch Logs if Oak Logs insufficient)
+        Object.keys(simBank).forEach(k => delete simBank[k]);
+        Object.assign(simBank, bankSnapshot);
+        stages.length = stageSnapshotLen;
+      }
+    }
+    return false;
+  }
+
+  const possible = acquire(recipe.out, recipe.count * batchQty, recipe.id, 0);
+  return { craftable: possible, stages };
+}
+
+// ----------------------------------------------------------------------------
+// 8. EXPEDITION, CRAFTING, FURNACE, FARMING, BASE & PEN ACTIONS
+// ----------------------------------------------------------------------------
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function getPouchTotal(pouch) {
+  return Object.values(pouch || {}).reduce((a, b) => a + b, 0);
+}
+
+/**
+ * Handles proportional travel buffer when interrupting an active expedition.
+ * If the player is away from Home Base (distanceRatio > 0), they must walk back
+ * proportionally before unloading and starting `nextTask` (or resting).
+ */
+function initiateProportionalReturn(nextTask = null) {
+  const task = state.activeTask;
+  if (!task || (task.type !== 'woodcutting' && task.type !== 'mining')) {
+    state.activeTask = nextTask;
+    renderAll();
+    return;
+  }
+
+  const dist = task.distanceRatio ?? (task.phase === 'walking' || task.phase === 'descending' ? task.progress : 1);
+  if (dist <= 0.02) {
+    depositPouchToBank();
+    state.activeTask = nextTask;
+    renderAll();
+    return;
+  }
+
+  task.phase = 'returning';
+  task.returnStartDist = dist;
+  task.progress = 0;
+  task.stopAfterReturn = !nextTask;
+  task.queuedTask = nextTask;
+  addLog(`🏃 Heading back to Home Base (${Math.round(dist * 100)}% distance remaining)...`);
+  renderAll();
+}
+
+function startWoodcutting(zoneId) {
+  const zone = WOODCUTTING_ZONES.find(z => z.id === zoneId);
+  if (!zone) return;
+  if (getToolTier('axe') < zone.reqAxeTier) {
+    showToast(`Requires a Tier ${zone.reqAxeTier}+ Axe!`, 'rose');
+    return;
+  }
+
+  const newTask = {
+    type: 'woodcutting',
+    zoneId,
+    phase: 'walking', // 'walking' -> 'chopping' -> 'returning'
+    progress: 0,
+    distanceRatio: 0,
+    returnStartDist: 1,
+    chopsDone: 0,
+    treesFelled: 0,
+    stopAfterReturn: false,
+    queuedTask: null,
+    pouch: {}
+  };
+
+  if (state.activeTask && (state.activeTask.type === 'woodcutting' || state.activeTask.type === 'mining')) {
+    if (state.activeTask.zoneId === zoneId && state.activeTask.phase !== 'returning') return;
+    initiateProportionalReturn(newTask);
+    return;
+  }
+
+  state.activeTask = newTask;
+  addLog(`🌲 Set out on foot toward ${zone.name}...`);
+  renderAll();
+}
+
+function startMining(layerId) {
+  const layer = MINING_LAYERS.find(l => l.id === layerId);
+  if (!layer) return;
+  if (getToolTier('pickaxe') < layer.reqPickTier) {
+    showToast(`Requires a Tier ${layer.reqPickTier}+ Pickaxe!`, 'rose');
+    return;
+  }
+
+  const newTask = {
+    type: 'mining',
+    layerId,
+    phase: 'descending', // 'descending' -> 'exploring' -> 'mining' -> 'returning'
+    progress: 0,
+    distanceRatio: 0,
+    returnStartDist: 1,
+    veinsMined: 0,
+    stopAfterReturn: false,
+    queuedTask: null,
+    pouch: {}
+  };
+
+  if (state.activeTask && (state.activeTask.type === 'woodcutting' || state.activeTask.type === 'mining')) {
+    if (state.activeTask.layerId === layerId && state.activeTask.phase !== 'returning') return;
+    initiateProportionalReturn(newTask);
+    return;
+  }
+
+  state.activeTask = newTask;
+  addLog(`⛏️ Descending into ${layer.name}...`);
+  renderAll();
+}
+
+function toggleFinishHaulAndStop() {
+  const task = state.activeTask;
+  if (!task || (task.type !== 'woodcutting' && task.type !== 'mining')) return;
+  task.stopAfterReturn = !task.stopAfterReturn;
+  task.queuedTask = null;
+  if (task.stopAfterReturn) {
+    addLog('🎒 Will finish filling current pouch, return to Home Base, and stop.');
+  } else {
+    addLog('🔄 Resumed continuous expedition runs.');
+  }
+  updateLiveUI();
+}
+
+function depositPouchToBank() {
+  const task = state.activeTask;
+  if (!task || !task.pouch) return;
+  const entries = Object.entries(task.pouch);
+  if (entries.length === 0) return;
+
+  let summary = [];
+  for (const [itemId, qty] of entries) {
+    const stored = addToBank(itemId, qty, false);
+    if (stored > 0) summary.push(`${stored}x ${ITEMS[itemId]?.name || itemId}`);
+  }
+  task.pouch = {};
+  if (summary.length > 0) {
+    playSfx('loot');
+    spawnFloatingText(`Unloaded Pouch!`, 'amber');
+    addLog(`🎒 Returned to Home Base & stored: ${summary.join(', ')}.`);
+  }
+}
+
+function stopCurrentAction() {
+  if (!state.activeTask) return;
+  if (state.activeTask.type === 'woodcutting' || state.activeTask.type === 'mining') {
+    if (state.activeTask.phase === 'returning') {
+      state.activeTask.stopAfterReturn = true;
+      state.activeTask.queuedTask = null;
+      addLog('🏠 Already returning to Home Base; will rest on arrival.');
+      updateLiveUI();
+      return;
+    }
+    initiateProportionalReturn(null);
+    return;
+  }
+  addLog(`⏹️ Stopped ${state.activeTask.type}.`);
+  state.activeTask = null;
+  renderAll();
+}
+
+function startCrafting(recipeId, batchQty = 1) {
+  const plan = resolveCraftingPlan(recipeId, batchQty);
+  if (!plan.craftable || plan.stages.length === 0) {
+    showToast('Insufficient base materials to craft this batch.', 'rose');
+    return;
+  }
+  const targetRecipe = RECIPES.find(r => r.id === recipeId);
+  const totalOut = targetRecipe.count * batchQty;
+  const targetName = `${totalOut}x ${ITEMS[targetRecipe.out]?.name || recipeId}`;
+
+  const craftTask = {
+    type: 'crafting',
+    targetRecipeId: recipeId,
+    targetName,
+    stages: plan.stages,
+    currentStageIdx: 0,
+    currentCraftCount: 0,
+    progress: 0
+  };
+
+  if (state.activeTask && (state.activeTask.type === 'woodcutting' || state.activeTask.type === 'mining')) {
+    initiateProportionalReturn(craftTask);
+    return;
+  }
+
+  state.activeTask = craftTask;
+  addLog(`🔨 Queued crafting: ${targetName} (${plan.stages.length} stage${plan.stages.length > 1 ? 's' : ''}).`);
+  renderAll();
+}
+
+function startBaseUpgradeBuild() {
+  const nextBase = BASE_TIERS[state.baseLevel + 1];
+  if (!nextBase) return;
+  if (state.activeTask?.type === 'building') return;
+
+  for (const [itemId, req] of Object.entries(nextBase.cost)) {
+    if ((state.bank[itemId] || 0) < req) {
+      showToast(`Missing ${ITEMS[itemId]?.name || itemId}!`, 'rose');
+      return;
+    }
+  }
+  for (const [itemId, req] of Object.entries(nextBase.cost)) {
+    removeFromBank(itemId, req);
+  }
+
+  const buildTask = {
+    type: 'building',
+    buildKind: 'core',
+    targetLevel: nextBase.level,
+    title: `Rebuilding: ${nextBase.name}`,
+    duration: nextBase.buildTime,
+    elapsed: 0,
+    progress: 0,
+    soundTick: 0
+  };
+
+  if (state.activeTask && (state.activeTask.type === 'woodcutting' || state.activeTask.type === 'mining')) {
+    initiateProportionalReturn(buildTask);
+    return;
+  }
+
+  state.activeTask = buildTask;
+  playSfx('build');
+  addLog(`🏗️ Began rebuilding Home Base into ${nextBase.name} (${nextBase.buildTime}s)...`);
+  renderAll();
+}
+
+function startExtensionBuild(extId) {
+  const ext = BASE_EXTENSIONS.find(e => e.id === extId);
+  if (!ext) return;
+  const curLvl = getExtLevel(extId);
+  if (curLvl >= ext.maxLevel) return;
+  if (state.activeTask?.type === 'building') return;
+
+  const cost = ext.getCost(curLvl);
+  const duration = ext.getBuildTime(curLvl);
+
+  for (const [itemId, req] of Object.entries(cost)) {
+    if ((state.bank[itemId] || 0) < req) {
+      showToast(`Missing ${ITEMS[itemId]?.name || itemId}!`, 'rose');
+      return;
+    }
+  }
+  for (const [itemId, req] of Object.entries(cost)) {
+    removeFromBank(itemId, req);
+  }
+
+  const buildTask = {
+    type: 'building',
+    buildKind: 'extension',
+    extId,
+    targetLevel: curLvl + 1,
+    title: `Building ${ext.name} (Lv.${curLvl + 1})`,
+    duration,
+    elapsed: 0,
+    progress: 0,
+    soundTick: 0
+  };
+
+  if (state.activeTask && (state.activeTask.type === 'woodcutting' || state.activeTask.type === 'mining')) {
+    initiateProportionalReturn(buildTask);
+    return;
+  }
+
+  state.activeTask = buildTask;
+  playSfx('build');
+  addLog(`🔨 Started constructing ${ext.name} Lv.${curLvl + 1} (${duration}s)...`);
+  renderAll();
+}
+
+// Furnace Actions (Ordered Batch Fuel Queue)
+const FUEL_BURN_TIMES = {
+  coal: 40,
+  charcoal: 35,
+  oak_log: 12,
+  birch_log: 12,
+  spruce_log: 12,
+  dark_oak_log: 12,
+  planks: 8
+};
+
+function setFuelBatch(itemId, qty) {
+  if (!state.fuelBatchSelection) state.fuelBatchSelection = {};
+  state.fuelBatchSelection[itemId] = Math.max(1, Math.floor(qty || 1));
+  renderAll();
+}
+
+function queueFurnaceFuel(itemId, qty = 1) {
+  const have = state.bank[itemId] || 0;
+  const actual = Math.min(have, Math.max(1, Math.floor(qty || 1)));
+  if (actual <= 0) return;
+
+  removeFromBank(itemId, actual);
+  if (!Array.isArray(state.furnace.fuelQueue)) state.furnace.fuelQueue = [];
+
+  // Merge if same fuel is at the tail of the queue, otherwise append in exact order
+  const tail = state.furnace.fuelQueue[state.furnace.fuelQueue.length - 1];
+  if (tail && tail.itemId === itemId) {
+    tail.qty += actual;
+  } else {
+    state.furnace.fuelQueue.push({ itemId, qty: actual });
+  }
+
+  playSfx('craft');
+  addLog(`🔥 Queued ${actual}x ${ITEMS[itemId]?.name} into the Furnace firebox.`);
+  renderAll();
+}
+
+function removeQueuedFuel(index) {
+  if (!Array.isArray(state.furnace.fuelQueue)) return;
+  const entry = state.furnace.fuelQueue[index];
+  if (!entry) return;
+  const returned = addToBank(entry.itemId, entry.qty, false);
+  if (returned > 0) {
+    state.furnace.fuelQueue.splice(index, 1);
+    addLog(`↩️ Reclaimed ${returned}x ${ITEMS[entry.itemId]?.name} from Furnace queue.`);
+  }
+  renderAll();
+}
+
+function setFurnaceRecipe(recipeId) {
+  state.furnace.targetRecipeId = recipeId;
+  state.furnace.progress = 0;
+  const rec = SMELTING_RECIPES.find(r => r.id === recipeId);
+  if (rec) addLog(`🔥 Furnace set to smelt ${ITEMS[rec.outItem].name}.`);
+  renderAll();
+}
+
+// Farming Actions
+function plantCrop(plotIndex, cropId) {
+  const unlockedPlots = getBaseInfo().farmPlots;
+  if (plotIndex >= unlockedPlots) return;
+  const plot = state.plots[plotIndex];
+  if (!plot || plot.cropId) return;
+  if (!removeFromBank(cropId, 1)) {
+    showToast(`No ${ITEMS[cropId]?.name} in bank!`, 'rose');
+    return;
+  }
+  plot.cropId = cropId;
+  plot.elapsed = 0;
+  playSfx('craft');
+  addLog(`🌱 Planted ${ITEMS[cropId].name} in Farm Plot #${plotIndex + 1}.`);
+  renderAll();
+}
+
+function harvestPlot(plotIndex, replant = false) {
+  const plot = state.plots[plotIndex];
+  if (!plot || !plot.cropId) return;
+  const crop = CROPS.find(c => c.id === plot.cropId);
+  if (!crop || plot.elapsed < crop.growTime) return;
+
+  const hoeBonus = getToolTier('hoe') >= 3 ? 1 : 0;
+  const pantryBonus = getExtLevel('pantry') > 0 && Math.random() < (getExtLevel('pantry') * 0.15) ? 1 : 0;
+  const yieldQty = randInt(crop.yieldMin, crop.yieldMax) + hoeBonus + pantryBonus;
+  addToBank(crop.yieldItem, yieldQty, true);
+  state.stats.cropsHarvested++;
+
+  if (crop.seedReturn[1] > 0) {
+    const seedsBack = randInt(crop.seedReturn[0], crop.seedReturn[1]);
+    if (seedsBack > 0) addToBank(crop.id, seedsBack, false);
+  }
+
+  playSfx('loot');
+  const prevCrop = plot.cropId;
+  plot.cropId = null;
+  plot.elapsed = 0;
+
+  if (replant && (state.bank[prevCrop] || 0) > 0) {
+    removeFromBank(prevCrop, 1);
+    plot.cropId = prevCrop;
+  }
+  renderAll();
+}
+
+function startTendingCrops() {
+  const tendTask = {
+    type: 'tending',
+    progress: 0
+  };
+  if (state.activeTask && (state.activeTask.type === 'woodcutting' || state.activeTask.type === 'mining')) {
+    initiateProportionalReturn(tendTask);
+    return;
+  }
+  state.activeTask = tendTask;
+  addLog(`🌾 Tending Home Base farm plots (boosts growth & auto-harvests)...`);
+  renderAll();
+}
+
+// Livestock Pen Actions
+function buildLivestockPen(penIndex) {
+  const maxPens = getMaxPens();
+  if (penIndex >= maxPens) return;
+  const pen = state.pens[penIndex];
+  if (!pen || pen.built) return;
+
+  if ((state.bank.oak_fence || 0) < 12 || (state.bank.fence_gate || 0) < 1) {
+    showToast('Requires 12x Oak Fence and 1x Fence Gate!', 'rose');
+    return;
+  }
+  removeFromBank('oak_fence', 12);
+  removeFromBank('fence_gate', 1);
+  pen.built = true;
+  pen.species = null;
+  pen.count = 0;
+  pen.progress = 0;
+  playSfx('build');
+  addLog(`🪵 Built fenced Livestock Pen #${penIndex + 1}!`);
+  renderAll();
+}
+
+function assignAnimalToPen(penIndex, speciesId) {
+  const pen = state.pens[penIndex];
+  if (!pen || !pen.built) return;
+  if (pen.species && pen.species !== speciesId) {
+    showToast('Each pen can only house one species at a time.', 'rose');
+    return;
+  }
+  if (pen.count >= 8) {
+    showToast('This pen is at maximum capacity (8 animals).', 'rose');
+    return;
+  }
+  if (!removeFromBank(speciesId, 1)) {
+    showToast(`No ${LIVESTOCK_SPECIES[speciesId]?.name} in bank!`, 'rose');
+    return;
+  }
+  pen.species = speciesId;
+  pen.count++;
+  playSfx('loot');
+  addLog(`🐾 Placed ${LIVESTOCK_SPECIES[speciesId].name} into Pen #${penIndex + 1} (${pen.count}/8).`);
+  renderAll();
+}
+
+function breedAnimalsInPen(penIndex) {
+  const pen = state.pens[penIndex];
+  if (!pen || !pen.built || !pen.species || pen.count < 2 || pen.count >= 8) return;
+  const spec = LIVESTOCK_SPECIES[pen.species];
+  if (!removeFromBank(spec.breedFood, spec.breedCost)) {
+    showToast(`Requires ${spec.breedCost}x ${ITEMS[spec.breedFood].name}!`, 'rose');
+    return;
+  }
+  pen.count++;
+  playSfx('loot');
+  spawnFloatingText(`❤️ Baby ${spec.name} Born!`, 'amber');
+  addLog(`❤️ Bred ${spec.name}s in Pen #${penIndex + 1} with ${spec.breedCost}x ${ITEMS[spec.breedFood].name}! Herd: ${pen.count}/8.`);
+  renderAll();
+}
+
+function harvestPenAnimalForMeat(penIndex) {
+  const pen = state.pens[penIndex];
+  if (!pen || !pen.built || !pen.species || pen.count <= 0) return;
+  const meatMap = { pig: 'raw_porkchop', sheep: 'raw_mutton', cow: 'raw_beef' };
+  const meatId = meatMap[pen.species];
+  const qty = randInt(2, 4);
+  addToBank(meatId, qty, true);
+  if (pen.species === 'cow') addToBank('leather', 1, false);
+  pen.count--;
+  if (pen.count <= 0) {
+    pen.species = null;
+    pen.progress = 0;
+  }
+  playSfx('chop');
+  addLog(`🍖 Harvested ${qty}x ${ITEMS[meatId].name} from Pen #${penIndex + 1}.`);
+  renderAll();
+}
+
+// ----------------------------------------------------------------------------
 // 9. MAIN SIMULATION LOOP (DELTA-TIME & BACKGROUND CATCH-UP)
 // ----------------------------------------------------------------------------
 const TICK_MS = 100;
